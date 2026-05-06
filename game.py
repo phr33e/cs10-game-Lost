@@ -2,33 +2,33 @@ import arcade
 import random
 
 # Screen configuration
-NUM_LANES = 5
-LANE_WIDTH = 100
-WIDTH = NUM_LANES * LANE_WIDTH  # 500 pixels wide
+NUM_LANES = 100
+LANE_WIDTH = 10
+WIDTH = NUM_LANES * LANE_WIDTH  # 1000 pixels wide
 HEIGHT = 600
 
 # Speed settings
-SLIDE_SPEED = 2.0      # Slower, steady sideways movement scaled for wider lanes
+SLIDE_SPEED = 0.8      # Slow, steady sideways movement scaled for 10px lanes
 FORWARD_SPEED = 3.5    # Normal forward speed
 BOOST_SPEED = 8.5      # Speed when boosting
 
 # Obstacle Spacing Settings
 SPAWN_RATE = 90
 BOOST_ZONE_HEIGHT = 32000  # Massive runway to ensure at least 60 seconds of boost time
-BOOST_ZONE_LANES = 2       # Boost pad is 2 lanes wide
+BOOST_ZONE_LANES = 5       # Boost pad is 5 lanes wide (50 pixels wide)
 
-# Generate coordinates for the center of all 5 lanes
+# Generate coordinates for the center of all 100 lanes
 LANES = [LANE_WIDTH // 2 + i * LANE_WIDTH for i in range(NUM_LANES)]
 
-class SimpleRunner5(arcade.Window):
+class SimpleRunner100(arcade.Window):
     def __init__(self):
-        super().__init__(WIDTH, HEIGHT, "5-Lane Subway Surfers MVP")
+        super().__init__(WIDTH, HEIGHT, "100-Lane Subway Surfers MVP")
         arcade.set_background_color(arcade.color.BLACK)
         self.keys_held = set()  # Track which keys are currently pressed
         self.reset()
 
     def reset(self):
-        self.player_lane = NUM_LANES // 2  # Start in the middle lane (lane 2)
+        self.player_lane = NUM_LANES // 2  # Start in the middle lane (lane 50)
         self.player_x = LANES[self.player_lane]
         self.player_target_x = LANES[self.player_lane]
         self.obstacles = []  # Stores [x, y] coordinates
@@ -51,19 +51,19 @@ class SimpleRunner5(arcade.Window):
                 (46, 204, 113, 80)  # Green with transparency
             )
 
-        # 2. Draw Player (Cyan normally, Neon Green when boosting)
+        # 2. Draw Player (Cyan dot normally, Neon Green when boosting)
         player_color = arcade.color.LIME_GREEN if self.is_boosting else arcade.color.CYAN
-        # Scaled up square for 100px lane width (70x70)
+        # Scaled down to fit 10px lane width (8x8 pixels)
         arcade.draw_rect_filled(
-            arcade.XYWH(self.player_x, 80, LANE_WIDTH - 30, LANE_WIDTH - 30),
+            arcade.XYWH(self.player_x, 80, LANE_WIDTH - 2, LANE_WIDTH - 2),
             player_color
         )
 
         # 3. Draw Obstacles (Red rectangles)
-        # Scaled up for 100px lane width (80x40)
+        # Scaled down to fit 10px lane width (8x20 pixels)
         for obs in self.obstacles:
             arcade.draw_rect_filled(
-                arcade.XYWH(obs[0], obs[1], LANE_WIDTH - 20, 40),
+                arcade.XYWH(obs[0], obs[1], LANE_WIDTH - 2, 20),
                 arcade.color.RED
             )
 
@@ -77,7 +77,7 @@ class SimpleRunner5(arcade.Window):
     def on_update(self, delta_time):
         self.spawn_timer += 1
 
-        # Check if the player is currently inside any of the active 2-lane boost zones
+        # Check if the player is currently inside any of the active 5-lane boost zones
         self.is_boosting = False
         for bz in self.boost_zones:
             zone_left = bz['start_lane'] * LANE_WIDTH
@@ -85,7 +85,7 @@ class SimpleRunner5(arcade.Window):
             zone_bottom = bz['y'] - bz['height'] / 2
             zone_top = bz['y'] + bz['height'] / 2
 
-            # If player's X is within the 2 lanes, and player's Y (80) is vertically on the pad
+            # Check if player X and Y are within the boost zone boundaries
             if zone_left <= self.player_x <= zone_right and zone_bottom <= 80 <= zone_top:
                 self.is_boosting = True
                 break
@@ -112,27 +112,30 @@ class SimpleRunner5(arcade.Window):
 
         # Spawn loop
         if self.spawn_timer >= SPAWN_RATE:
-            # Only spawn a new giant Boost Zone if there isn't one already active on/above the screen
-            if len(self.boost_zones) == 0 and random.random() < 0.35:
+            # Only spawn a new giant 5-lane Boost Zone if there isn't one already active
+            if len(self.boost_zones) == 0 and random.random() < 0.40:
                 start_lane = random.randint(0, NUM_LANES - BOOST_ZONE_LANES)
                 self.boost_zones.append({
                     'start_lane': start_lane,
-                    'y': HEIGHT + (BOOST_ZONE_HEIGHT / 2), # Position center so the bottom edge starts at top-of-screen
+                    'y': HEIGHT + (BOOST_ZONE_HEIGHT / 2),
                     'height': BOOST_ZONE_HEIGHT
                 })
 
-            # Spawn 1 or 2 random obstacles at a time (leaves at least 3 lanes completely open to dodge)
-            num_obstacles = random.randint(1, 2)
-            chosen_lanes = random.sample(range(NUM_LANES), num_obstacles)
-            for lane_idx in chosen_lanes:
-                self.obstacles.append([LANES[lane_idx], HEIGHT + 20])
+            # Spawn obstacle clumps scaled for 100 lanes
+            num_clumps = random.randint(2, 4)
+            for _ in range(num_clumps):
+                clump_center = random.randint(5, NUM_LANES - 6)
+                clump_size = random.randint(3, 10)
+                for offset in range(-clump_size // 2, (clump_size // 2) + 1):
+                    lane_idx = clump_center + offset
+                    if 0 <= lane_idx < NUM_LANES:
+                        self.obstacles.append([LANES[lane_idx], HEIGHT + 20])
 
             self.spawn_timer = 0
 
         # Move and clean up boost zones
         for bz in self.boost_zones[:]:
             bz['y'] -= current_forward_speed
-            # Remove the boost zone only when its top edge completely leaves the bottom of the screen
             if bz['y'] + (bz['height'] / 2) < 0:
                 self.boost_zones.remove(bz)
 
@@ -140,8 +143,8 @@ class SimpleRunner5(arcade.Window):
         for obs in self.obstacles[:]:
             obs[1] -= current_forward_speed
 
-            # Collision detection (adjusted for the larger 5-lane layout elements)
-            if abs(self.player_x - obs[0]) < (LANE_WIDTH - 25) and abs(obs[1] - 80) < 45:
+            # Collision detection (adjusted for small 10px lane size)
+            if abs(self.player_x - obs[0]) < 8 and abs(obs[1] - 80) < 14:
                 self.reset()  # Instant restart on hit
 
             # Remove off-screen obstacles
@@ -167,5 +170,5 @@ class SimpleRunner5(arcade.Window):
         self.keys_held.discard(key)
 
 if __name__ == "__main__":
-    SimpleRunner5()
+    SimpleRunner100()
     arcade.run()
