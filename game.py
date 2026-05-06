@@ -8,11 +8,11 @@ WIDTH = NUM_LANES * LANE_WIDTH  # 800 pixels wide
 HEIGHT = 600
 
 # Speed settings
-SLIDE_SPEED = 0.12
+SLIDE_SPEED = 0.15     # Slightly increased for smoother continuous sliding
 FORWARD_SPEED = 3.5
 
 # Obstacle Spacing Settings
-SPAWN_RATE = 90        # Much higher frame delay (fewer obstacles, clumps are far apart)
+SPAWN_RATE = 90
 
 # Generate coordinates for the center of all 40 lanes
 LANES = [LANE_WIDTH // 2 + i * LANE_WIDTH for i in range(NUM_LANES)]
@@ -21,6 +21,7 @@ class SimpleRunner40(arcade.Window):
     def __init__(self):
         super().__init__(WIDTH, HEIGHT, "40-Lane Subway Surfers MVP")
         arcade.set_background_color(arcade.color.BLACK)
+        self.keys_held = set()  # Track which keys are currently pressed
         self.reset()
 
     def reset(self):
@@ -30,6 +31,7 @@ class SimpleRunner40(arcade.Window):
         self.obstacles = []  # Stores [x, y] coordinates
         self.spawn_timer = 0
         self.score = 0
+        self.keys_held.clear()  # Clear held keys on reset to prevent instant post-death movement
 
     def on_draw(self):
         self.clear()
@@ -58,20 +60,26 @@ class SimpleRunner40(arcade.Window):
         dx = self.player_target_x - self.player_x
         self.player_x += dx * SLIDE_SPEED
 
-        # Spawn obstacles in 1 or 2 tight horizontal clumps
+        # Continuous movement check: If a key is held down and we are almost
+        # aligned with our target lane, immediately set the next target lane.
+        if abs(self.player_x - self.player_target_x) < 3:
+            if (arcade.key.LEFT in self.keys_held or arcade.key.A in self.keys_held) and self.player_lane > 0:
+                self.player_lane -= 1
+                self.player_target_x = LANES[self.player_lane]
+            elif (arcade.key.RIGHT in self.keys_held or arcade.key.D in self.keys_held) and self.player_lane < NUM_LANES - 1:
+                self.player_lane += 1
+                self.player_target_x = LANES[self.player_lane]
+
+        # Spawn obstacles in tight horizontal clumps
         if self.spawn_timer >= SPAWN_RATE:
             num_clumps = random.choice([1, 2])
-
             for _ in range(num_clumps):
                 clump_center = random.randint(3, NUM_LANES - 4)
-                clump_size = random.randint(3, 7)  # Clump width (how many adjacent lanes are blocked)
-
-                # Spawn obstacles directly side-by-side
+                clump_size = random.randint(3, 7)
                 for offset in range(-clump_size // 2, (clump_size // 2) + 1):
                     lane_idx = clump_center + offset
                     if 0 <= lane_idx < NUM_LANES:
                         self.obstacles.append([LANES[lane_idx], HEIGHT + 20])
-
             self.spawn_timer = 0
 
         # Move and check obstacles
@@ -87,13 +95,22 @@ class SimpleRunner40(arcade.Window):
                 self.obstacles.remove(obs)
 
     def on_key_press(self, key, modifiers):
-        # Update target lane and target X destination
-        if key in [arcade.key.LEFT, arcade.key.A] and self.player_lane > 0:
-            self.player_lane -= 1
-            self.player_target_x = LANES[self.player_lane]
-        elif key in [arcade.key.RIGHT, arcade.key.D] and self.player_lane < NUM_LANES - 1:
-            self.player_lane += 1
-            self.player_target_x = LANES[self.player_lane]
+        # Add key to the active held keys set
+        if key in [arcade.key.LEFT, arcade.key.A, arcade.key.RIGHT, arcade.key.D]:
+            self.keys_held.add(key)
+
+        # Instant tap responsiveness (moves immediately on initial press)
+        if abs(self.player_x - self.player_target_x) < 3:
+            if key in [arcade.key.LEFT, arcade.key.A] and self.player_lane > 0:
+                self.player_lane -= 1
+                self.player_target_x = LANES[self.player_lane]
+            elif key in [arcade.key.RIGHT, arcade.key.D] and self.player_lane < NUM_LANES - 1:
+                self.player_lane += 1
+                self.player_target_x = LANES[self.player_lane]
+
+    def on_key_release(self, key, modifiers):
+        # Remove key from the active held keys set
+        self.keys_held.discard(key)
 
 if __name__ == "__main__":
     SimpleRunner40()
