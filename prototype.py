@@ -40,7 +40,6 @@ class RunnerGame(arcade.Window):
         self.player_lane = NUM_LANES // 2
         self.target_x = LANES[self.player_lane]
 
-        # In Arcade 3.0, SpriteSolidColor uses width/height/color keywords
         self.player_sprite = arcade.SpriteSolidColor(
             width=PLAYER_SIZE,
             height=PLAYER_SIZE,
@@ -82,34 +81,40 @@ class RunnerGame(arcade.Window):
 
         # 1. Lanes
         for x in range(0, WIDTH + 1, LANE_WIDTH):
-            arcade.draw_line(x, 0, x, HEIGHT, (40, 40, 80), 1)
+            arcade.draw_line(start_x=x, start_y=0, end_x=x, end_y=HEIGHT, color=(40, 40, 80), line_width=1)
 
-        # 2. Obstacles
+        # 2. Obstacles with Glow
         for obs in self.obstacle_list:
-            # FIX: Rect(x, y, width, height) where x,y is the center
-            arcade.draw_rect_filled(
-                arcade.Rect(obs.center_x, obs.center_y, obs.width + 8, obs.height + 8),
-                color=(*obs.color, 80)
+            # Using keywords x, y, width, height for the Rect
+            glow_rect = arcade.Rect(
+                x=obs.center_x,
+                y=obs.center_y,
+                width=obs.width + 8,
+                height=obs.height + 8
             )
+            arcade.draw_rect_filled(rect=glow_rect, color=(*obs.color, 80))
             obs.draw()
 
-        # 3. Player
+        # 3. Player with Glow
         if not self.game_over:
-            arcade.draw_rect_filled(
-                arcade.Rect(self.player_sprite.center_x, self.player_sprite.center_y,
-                            PLAYER_SIZE + 12, PLAYER_SIZE + 12),
-                color=(0, 255, 255, 100)
+            player_glow_rect = arcade.Rect(
+                x=self.player_sprite.center_x,
+                y=self.player_sprite.center_y,
+                width=PLAYER_SIZE + 12,
+                height=PLAYER_SIZE + 12
             )
+            arcade.draw_rect_filled(rect=player_glow_rect, color=(0, 255, 255, 100))
             self.player_sprite.draw()
 
         self.particles.draw()
 
-        # 4. HUD - Explicitly naming color and font_size for 3.0
+        # 4. HUD
         arcade.draw_text(f"SCORE: {int(self.score)}", 20, HEIGHT - 35, color=arcade.color.WHITE, font_size=16, bold=True)
         arcade.draw_text(f"BEST: {int(self.best_score)}", WIDTH - 130, HEIGHT - 35, color=arcade.color.GRAY, font_size=14)
 
         if self.game_over:
-            arcade.draw_rect_filled(arcade.Rect(WIDTH/2, HEIGHT/2, 300, 100), color=(0, 0, 0, 220))
+            modal_rect = arcade.Rect(x=WIDTH/2, y=HEIGHT/2, width=300, height=100)
+            arcade.draw_rect_filled(rect=modal_rect, color=(0, 0, 0, 220))
             arcade.draw_text("CRASHED", WIDTH/2, HEIGHT/2 + 10, color=arcade.color.RED, font_size=24, anchor_x="center", bold=True)
             arcade.draw_text("Press R to Reboot", WIDTH/2, HEIGHT/2 - 20, color=arcade.color.WHITE, font_size=14, anchor_x="center")
 
@@ -121,23 +126,19 @@ class RunnerGame(arcade.Window):
         self.game_time += delta_time
         self.score += delta_time * 100
 
-        # Smooth Movement
         self.player_sprite.center_x += (self.target_x - self.player_sprite.center_x) * LERP_SPEED
 
-        # Difficulty Scaling
         self.obstacle_speed = 7.0 + (self.game_time * 0.5)
         self.spawn_timer += delta_time
         if self.spawn_timer >= max(0.15, 0.7 - (self.game_time * 0.02)):
             self.spawn_timer = 0.0
             self.spawn_wave()
 
-        # Update obstacles
         for obs in self.obstacle_list:
             obs.center_y -= self.obstacle_speed
             if obs.top < 0:
                 obs.remove_from_sprite_lists()
 
-        # Collision
         if arcade.check_for_collision_with_list(self.player_sprite, self.obstacle_list):
             self.game_over = True
             self.best_score = max(self.best_score, self.score)
@@ -156,7 +157,6 @@ class RunnerGame(arcade.Window):
             self.setup()
 
 def main():
-    # In 3.0+, we usually create the window object then run
     window = RunnerGame()
     arcade.run()
 
