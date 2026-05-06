@@ -6,101 +6,110 @@ NUM_LANES = 20
 LANE_WIDTH = 40
 WIDTH = NUM_LANES * LANE_WIDTH
 HEIGHT = 600
-TITLE = "20-Lane Runner – Playable Version"
+TITLE = "20-Lane Runner – Sprite-Only"
 
-# Precompute x positions for lane centers
 LANES = [LANE_WIDTH // 2 + i * LANE_WIDTH for i in range(NUM_LANES)]
 
 PLAYER_Y = 80
 PLAYER_SIZE = LANE_WIDTH - 10
+
 OBSTACLE_WIDTH = LANE_WIDTH - 6
 OBSTACLE_HEIGHT = 30
 
 
 class RunnerGame(arcade.Window):
-    """Simple, fully playable 20-lane runner."""
-
     def __init__(self):
         super().__init__(WIDTH, HEIGHT, TITLE)
+
+        # Background color is just the clear color; no draw_rectangle
         arcade.set_background_color(arcade.color.BLACK)
 
+        # SpriteLists
+        self.lane_list = arcade.SpriteList()
+        self.player_list = arcade.SpriteList()
+        self.obstacle_list = arcade.SpriteList()
+        self.hud_list = arcade.SpriteList()
+
+        # Game state
         self.player_lane = NUM_LANES // 2
-        self.player_x = LANES[self.player_lane]
+        self.player_sprite = None
 
-        # Obstacles are simple dicts: {"x": ..., "y": ...}
-        self.obstacles = []
-
-        self.score = 0
-        self.game_over = False
-
-        # Timers / difficulty
-        self.spawn_timer = 0.0
-        self.game_time = 0.0
-        self.obstacle_speed = 7.0
-
-    def reset(self):
-        """Reset game state for a new run."""
-        self.player_lane = NUM_LANES // 2
-        self.player_x = LANES[self.player_lane]
-        self.obstacles = []
         self.score = 0
         self.game_over = False
         self.spawn_timer = 0.0
         self.game_time = 0.0
         self.obstacle_speed = 7.0
 
-    # --- DRAWING ---
+        self.setup()
+
+    def setup(self):
+        # Clear any existing sprites
+        self.lane_list = arcade.SpriteList()
+        self.player_list = arcade.SpriteList()
+        self.obstacle_list = arcade.SpriteList()
+        self.hud_list = arcade.SpriteList()
+
+        # Lanes: thin vertical sprites
+        for i in range(1, NUM_LANES):
+            x = i * LANE_WIDTH
+            lane = arcade.SpriteSolidColor(2, HEIGHT, arcade.color.DARK_GRAY)
+            lane.center_x = x
+            lane.center_y = HEIGHT // 2
+            self.lane_list.append(lane)
+
+        # Player
+        self.player_lane = NUM_LANES // 2
+        self.player_sprite = arcade.SpriteSolidColor(
+            PLAYER_SIZE, PLAYER_SIZE, arcade.color.CYAN
+        )
+        self.player_sprite.center_x = LANES[self.player_lane]
+        self.player_sprite.center_y = PLAYER_Y
+        self.player_list.append(self.player_sprite)
+
+        # HUD bar
+        hud_bg = arcade.SpriteSolidColor(WIDTH, 40, (0, 0, 0, 180))
+        hud_bg.center_x = WIDTH // 2
+        hud_bg.center_y = HEIGHT - 20
+        self.hud_list.append(hud_bg)
+
+        # Game state
+        self.score = 0
+        self.game_over = False
+        self.spawn_timer = 0.0
+        self.game_time = 0.0
+        self.obstacle_speed = 7.0
+
+    # --- Drawing ---
 
     def on_draw(self):
         self.clear()
 
-        # Lane divider lines
-        for i in range(1, NUM_LANES):
-            x = i * LANE_WIDTH
-            arcade.draw_line(
-                x, 0, x, HEIGHT,
-                arcade.color.DARK_GRAY, 1
-            )
+        # Draw lanes, player, obstacles, HUD background
+        self.lane_list.draw()
+        self.obstacle_list.draw()
+        self.player_list.draw()
+        self.hud_list.draw()
 
-        # Player (cyan rectangle)
-        arcade.draw_rectangle_filled(
-            self.player_x,
-            PLAYER_Y,
-            PLAYER_SIZE,
-            PLAYER_SIZE,
-            arcade.color.CYAN
-        )
-
-        # Obstacles (red rectangles)
-        for obs in self.obstacles:
-            arcade.draw_rectangle_filled(
-                obs["x"],
-                obs["y"],
-                OBSTACLE_WIDTH,
-                OBSTACLE_HEIGHT,
-                arcade.color.RED
-            )
-
-        # Score display
+        # Text is still drawn with draw_text
         arcade.draw_text(
             f"SCORE: {self.score}",
-            15,
-            HEIGHT - 35,
+            10,
+            HEIGHT - 32,
             arcade.color.WHITE,
             16,
         )
 
         if self.game_over:
             arcade.draw_text(
-                "GAME OVER – Press R to restart",
+                "GAME OVER - Press R to restart",
                 WIDTH / 2,
-                HEIGHT / 2 + 10,
+                HEIGHT / 2,
                 arcade.color.YELLOW,
                 18,
                 anchor_x="center",
             )
 
-    # --- GAME LOGIC ---
+    # --- Game logic ---
 
     def on_update(self, delta_time: float):
         if self.game_over:
@@ -109,68 +118,59 @@ class RunnerGame(arcade.Window):
         self.game_time += delta_time
         self.score += 1
 
-        # Increase speed slowly over time
+        # Scale difficulty
         self.obstacle_speed = 7.0 + self.game_time * 0.4
 
-        # Spawn obstacles at intervals that shrink as you survive longer
+        # Spawn obstacles
         self.spawn_timer += delta_time
         spawn_interval = max(0.25, 0.9 - self.game_time * 0.04)
 
         if self.spawn_timer >= spawn_interval:
             self.spawn_timer = 0.0
+            lane_xs = random.sample(LANES, k=random.randint(1, 3))
+            for x in lane_xs:
+                obs = arcade.SpriteSolidColor(
+                    OBSTACLE_WIDTH, OBSTACLE_HEIGHT, arcade.color.RED
+                )
+                obs.center_x = x
+                obs.center_y = HEIGHT + 40
+                self.obstacle_list.append(obs)
 
-            # Spawn 1–3 obstacles in random lanes
-            lanes_this_wave = random.sample(LANES, k=random.randint(1, 3))
-            for lane_x in lanes_this_wave:
-                self.obstacles.append({"x": lane_x, "y": HEIGHT + 40})
+        # Move obstacles
+        for obs in self.obstacle_list:
+            obs.center_y -= self.obstacle_speed
 
-        # Move obstacles down
-        for obs in self.obstacles:
-            obs["y"] -= self.obstacle_speed
-
-        # Collision check
-        # Player rectangle bounds:
-        player_left = self.player_x - PLAYER_SIZE / 2
-        player_right = self.player_x + PLAYER_SIZE / 2
-        player_bottom = PLAYER_Y - PLAYER_SIZE / 2
-        player_top = PLAYER_Y + PLAYER_SIZE / 2
-
-        for obs in self.obstacles:
-            obs_left = obs["x"] - OBSTACLE_WIDTH / 2
-            obs_right = obs["x"] + OBSTACLE_WIDTH / 2
-            obs_bottom = obs["y"] - OBSTACLE_HEIGHT / 2
-            obs_top = obs["y"] + OBSTACLE_HEIGHT / 2
-
-            overlap_x = not (obs_right < player_left or obs_left > player_right)
-            overlap_y = not (obs_top < player_bottom or obs_bottom > player_top)
-
-            if overlap_x and overlap_y:
-                self.game_over = True
-                break
+        # Collision detection: use Arcade helper
+        hits = arcade.check_for_collision_with_list(
+            self.player_sprite, self.obstacle_list
+        )
+        if hits:
+            self.game_over = True
 
         # Remove off-screen obstacles
-        self.obstacles = [o for o in self.obstacles if o["y"] > -40]
+        for obs in self.obstacle_list[:]:
+            if obs.top < -40:
+                obs.remove_from_sprite_lists()
 
-    # --- INPUT ---
+    # --- Input ---
 
     def on_key_press(self, key, modifiers):
         if key in (arcade.key.LEFT, arcade.key.A):
             if self.player_lane > 0:
                 self.player_lane -= 1
-                self.player_x = LANES[self.player_lane]
+                self.player_sprite.center_x = LANES[self.player_lane]
 
         elif key in (arcade.key.RIGHT, arcade.key.D):
             if self.player_lane < NUM_LANES - 1:
                 self.player_lane += 1
-                self.player_x = LANES[self.player_lane]
+                self.player_sprite.center_x = LANES[self.player_lane]
 
-        elif key == arcade.key.R:
-            if self.game_over:
-                self.reset()
+        elif key == arcade.key.R and self.game_over:
+            self.setup()
 
 
 def main():
-    game = RunnerGame()
+    RunnerGame()
     arcade.run()
 
 
