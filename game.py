@@ -9,8 +9,8 @@ HEIGHT = 600
 
 # Speed settings
 SLIDE_SPEED = 0.10     # How fast the player shifts side-to-side (0.1 = medium)
-FORWARD_SPEED = 3.5    # How fast obstacles move down (lower = slower forward movement. Default was 7)
-SPAWN_RATE = 24        # How many frames between obstacle spawns (increased to match slower speed)
+FORWARD_SPEED = 3.5    # How fast obstacles move down
+SPAWN_RATE = 24        # How many frames between obstacle spawns
 
 # Generate coordinates for the center of all 20 lanes
 LANES = [LANE_WIDTH // 2 + i * LANE_WIDTH for i in range(NUM_LANES)]
@@ -32,12 +32,7 @@ class SimpleRunner20(arcade.Window):
     def on_draw(self):
         self.clear()
 
-        # Draw 19 lane divider lines
-        for i in range(1, NUM_LANES):
-            x = i * LANE_WIDTH
-            arcade.draw_line(x, 0, x, HEIGHT, arcade.color.DARK_GRAY, 1)
-
-        # Draw Player (Cyan square, using self.player_x for smooth rendering)
+        # Draw Player (Cyan square)
         arcade.draw_rect_filled(
             arcade.XYWH(self.player_x, 80, LANE_WIDTH - 10, LANE_WIDTH - 10),
             arcade.color.CYAN
@@ -69,7 +64,7 @@ class SimpleRunner20(arcade.Window):
 
         # Move and check obstacles
         for obs in self.obstacles[:]:
-            obs[1] -= FORWARD_SPEED  # Slower downward movement
+            obs[1] -= FORWARD_SPEED  # Downward movement
 
             # Collision: check distance between player's actual X and obstacle X
             if abs(self.player_x - obs[0]) < (LANE_WIDTH - 8) and abs(obs[1] - 80) < 35:
