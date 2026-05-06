@@ -7,9 +7,10 @@ LANE_WIDTH = 40
 WIDTH = NUM_LANES * LANE_WIDTH  # 800 pixels wide
 HEIGHT = 600
 
-# SLIDE_SPEED controls how fast the player moves between lanes.
-# Try 0.05 for very slow, 0.1 for medium, or 0.2 for fast.
-SLIDE_SPEED = 0.10
+# Speed settings
+SLIDE_SPEED = 0.10     # How fast the player shifts side-to-side (0.1 = medium)
+FORWARD_SPEED = 3.5    # How fast obstacles move down (lower = slower forward movement. Default was 7)
+SPAWN_RATE = 24        # How many frames between obstacle spawns (increased to match slower speed)
 
 # Generate coordinates for the center of all 20 lanes
 LANES = [LANE_WIDTH // 2 + i * LANE_WIDTH for i in range(NUM_LANES)]
@@ -61,17 +62,16 @@ class SimpleRunner20(arcade.Window):
         self.player_x += dx * SLIDE_SPEED
 
         # Spawn obstacles in groups to fill 20 lanes
-        if self.spawn_timer >= 12:
+        if self.spawn_timer >= SPAWN_RATE:
             for _ in range(random.randint(1, 4)):
                 self.obstacles.append([random.choice(LANES), HEIGHT + 20])
             self.spawn_timer = 0
 
         # Move and check obstacles
         for obs in self.obstacles[:]:
-            obs[1] -= 7  # Obstacle speed
+            obs[1] -= FORWARD_SPEED  # Slower downward movement
 
             # Collision: check distance between player's actual X and obstacle X
-            # This ensures collision works perfectly even while the player is mid-slide!
             if abs(self.player_x - obs[0]) < (LANE_WIDTH - 8) and abs(obs[1] - 80) < 35:
                 self.reset()  # Instant restart on hit
 
