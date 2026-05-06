@@ -10,10 +10,11 @@ HEIGHT = 600
 # Speed settings
 SLIDE_SPEED = 1.5      # Turning speed stays exactly the same
 FORWARD_SPEED = 3.5    # Normal forward speed
-BOOST_SPEED = 8.5      # Faster forward speed when in the 8-lane boost zone
+BOOST_SPEED = 8.5      # Speed when boosting (at 60 FPS, this covers ~30,600 pixels in 1 minute)
 
 # Obstacle Spacing Settings
 SPAWN_RATE = 90
+BOOST_ZONE_HEIGHT = 32000  # Massive runway to ensure at least 60 seconds of boost time
 
 # Generate coordinates for the center of all 40 lanes
 LANES = [LANE_WIDTH // 2 + i * LANE_WIDTH for i in range(NUM_LANES)]
@@ -108,13 +109,13 @@ class SimpleRunner40(arcade.Window):
 
         # Spawn loop
         if self.spawn_timer >= SPAWN_RATE:
-            # 35% chance to spawn an 8-lane wide boost runway
-            if random.random() < 0.35:
+            # Only spawn a new giant Boost Zone if there isn't one already active on/above the screen
+            if len(self.boost_zones) == 0 and random.random() < 0.30:
                 start_lane = random.randint(0, NUM_LANES - 8)
                 self.boost_zones.append({
                     'start_lane': start_lane,
-                    'y': HEIGHT + 150,
-                    'height': 300
+                    'y': HEIGHT + (BOOST_ZONE_HEIGHT / 2), # Position center so the bottom edge starts at top-of-screen
+                    'height': BOOST_ZONE_HEIGHT
                 })
 
             # Spawn obstacle clumps
@@ -131,7 +132,8 @@ class SimpleRunner40(arcade.Window):
         # Move and clean up boost zones
         for bz in self.boost_zones[:]:
             bz['y'] -= current_forward_speed
-            if bz['y'] < -200:
+            # Remove the boost zone only when its top edge completely leaves the bottom of the screen
+            if bz['y'] + (bz['height'] / 2) < 0:
                 self.boost_zones.remove(bz)
 
         # Move and check obstacles
