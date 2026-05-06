@@ -1,324 +1,175 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Retro Lane Runner</title>
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background-color: #111;
-            color: #fff;
-            font-family: 'Courier New', Courier, monospace;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            overflow: hidden;
-        }
+import arcade
+import random
 
-        h1 {
-            margin: 5px 0;
-            text-shadow: 0 0 10px #ff0055;
-            font-size: 24px;
-        }
+# Game Constants
+SCREEN_WIDTH = 400
+SCREEN_HEIGHT = 600
+SCREEN_TITLE = "Neon Lane Runner"
 
-        #game-container {
-            position: relative;
-            width: 400px;
-            height: 600px;
-            border: 4px solid #ff0055;
-            box-shadow: 0 0 20px #ff0055;
-            background-color: #1a1a1a;
-        }
+# Lane setup
+LANE_WIDTH = SCREEN_WIDTH // 3
+LANES = [
+    LANE_WIDTH // 2,                  # Left lane center
+    LANE_WIDTH + LANE_WIDTH // 2,     # Middle lane center
+    LANE_WIDTH * 2 + LANE_WIDTH // 2  # Right lane center
+]
 
-        canvas {
-            display: block;
-        }
+class NeonRunner(arcade.Window):
+    def __init__(self):
+        super().__init__(SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_TITLE)
+        arcade.set_background_color(arcade.color.BLACK)
 
-        .overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.8);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-        }
+        # Game states: "START", "PLAYING", "GAME_OVER"
+        self.state = "START"
 
-        .btn {
-            background: #ff0055;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            font-size: 18px;
-            font-family: 'Courier New', Courier, monospace;
-            font-weight: bold;
-            cursor: pointer;
-            margin-top: 15px;
-            box-shadow: 0 0 10px #ff0055;
-            transition: 0.2s;
-        }
+        # Player attributes
+        self.player_lane = 1
+        self.player_x = LANES[self.player_lane]
+        self.player_y = 100
+        self.player_target_x = LANES[self.player_lane]
 
-        .btn:hover {
-            background: #ff3377;
-            transform: scale(1.05);
-        }
+        # Obstacles and mechanics
+        self.obstacles = []
+        self.score = 0
+        self.speed_multiplier = 1.0
+        self.spawn_timer = 0
+        self.spawn_rate = 70  # Frames between obstacle spawns
 
-        #instructions {
-            font-size: 14px;
-            color: #aaa;
-            margin-top: 10px;
-        }
-    </style>
-</head>
-<body>
+    def setup(self):
+        """Reset the game state for a new run."""
+        self.state = "PLAYING"
+        self.player_lane = 1
+        self.player_x = LANES[1]
+        self.player_target_x = LANES[1]
+        self.obstacles = []
+        self.score = 0
+        self.speed_multiplier = 1.0
+        self.spawn_timer = 0
 
-    <h1>NEON RUNNER</h1>
-    <div id="game-container">
-        <canvas id="gameCanvas" width="400" height="600"></canvas>
+    def on_draw(self):
+        """Render the screen."""
+        self.clear()
 
-        <div id="start-screen" class="overlay">
-            <h2 style="color: #00ffcc; text-shadow: 0 0 10px #00ffcc;">READY RUNNER?</h2>
-            <p id="instructions">Avoid obstacles.<br>No jumping. No sliding.<br>Pure reflexes.</p>
-            <p style="color: #ffff00; margin: 10px 0;">Controls: A / D or Arrow Keys</p>
-            <button class="btn" onclick="startGame()">START</button>
-        </div>
+        if self.state == "START":
+            self.draw_start_screen()
+        elif self.state == "PLAYING":
+            self.draw_gameplay()
+        elif self.state == "GAME_OVER":
+            self.draw_game_over_screen()
 
-        <div id="gameover-screen" class="overlay" style="display: none;">
-            <h2 style="color: #ff0055; text-shadow: 0 0 10px #ff0055;">GAME OVER</h2>
-            <p id="final-score" style="font-size: 20px;"></p>
-            <button class="btn" onclick="startGame()">PLAY AGAIN</button>
-        </div>
-    </div>
+    def draw_start_screen(self):
+        arcade.draw_text("NEON RUNNER", SCREEN_WIDTH // 2, SCREEN_HEIGHT - 150,
+                         arcade.color.NEON_CARROT, 28, anchor_x="center", font_name="Courier New", bold=True)
 
-    <script>
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        const startScreen = document.getElementById('start-screen');
-        const gameoverScreen = document.getElementById('gameover-screen');
-        const finalScoreText = document.getElementById('final-score');
+        arcade.draw_text("Avoid Obstacles.\nNo jumping. No sliding.\nPure reflexes.",
+                         SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2,
+                         arcade.color.WHITE, 15, anchor_x="center", font_name="Courier New", align="center")
 
-        // Game Configuration
-        const LANE_WIDTH = canvas.width / 3;
-        const LANES = [
-            LANE_WIDTH / 2,                  // Left Lane Center
-            LANE_WIDTH + LANE_WIDTH / 2,     // Middle Lane Center
-            LANE_WIDTH * 2 + LANE_WIDTH / 2  // Right Lane Center
-        ];
+        arcade.draw_text("Controls: A/D or Left/Right Arrow Keys", SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 80,
+                         arcade.color.YELLOW, 12, anchor_x="center", font_name="Courier New")
 
-        let gameActive = false;
-        let score = 0;
-        let speedMultiplier = 1;
+        arcade.draw_text("Press ENTER to Start", SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 160,
+                         arcade.color.GREEN, 18, anchor_x="center", font_name="Courier New", bold=True)
 
-        // Player properties
-        const player = {
-            lane: 1, // Start in the middle (0 = left, 1 = mid, 2 = right)
-            x: LANES[1],
-            y: 500,
-            radius: 20,
-            color: '#00ffcc',
-            targetX: LANES[1],
-            speed: 25 // Snappiness of lane switching
-        };
+    def draw_gameplay(self):
+        # Draw Lane Dividers (dotted lines)
+        for x_pos in [LANE_WIDTH, LANE_WIDTH * 2]:
+            arcade.draw_line(x_pos, 0, x_pos, SCREEN_HEIGHT, arcade.color.DARK_GRAY, 3)
 
-        // Obstacles array
-        let obstacles = [];
-        let obstacleSpawnTimer = 0;
-        let baseSpawnRate = 90; // Frame interval between spawns
+        # Draw Obstacles (Pink neon blocks)
+        for obs in self.obstacles:
+            arcade.draw_rectangle_filled(
+                obs['x'], obs['y'],
+                LANE_WIDTH - 40, 40,
+                arcade.color.FLUORESCENT_PINK
+            )
 
-        // Track road lines offset for scrolling effect
-        let roadOffset = 0;
+        # Draw Player (Cyan triangle pointing upward)
+        arcade.draw_triangle_filled(
+            self.player_x, self.player_y + 20,
+            self.player_x - 18, self.player_y - 18,
+            self.player_x + 18, self.player_y - 18,
+            arcade.color.NEON_BLUE
+        )
 
-        // Input Handlers
-        window.addEventListener('keydown', (e) => {
-            if (!gameActive) return;
+        # Draw HUD (Score and Speed)
+        arcade.draw_text(f"SCORE: {int(self.score)}", 20, SCREEN_HEIGHT - 40,
+                         arcade.color.YELLOW, 16, font_name="Courier New", bold=True)
+        arcade.draw_text(f"x{self.speed_multiplier:.1f} SPD", SCREEN_WIDTH - 20, SCREEN_HEIGHT - 40,
+                         arcade.color.GREEN, 16, anchor_x="right", font_name="Courier New", bold=True)
 
-            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
-                if (player.lane > 0) {
-                    player.lane--;
-                    player.targetX = LANES[player.lane];
-                }
-            }
-            if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
-                if (player.lane < 2) {
-                    player.lane++;
-                    player.targetX = LANES[player.lane];
-                }
-            }
-        });
+    def draw_game_over_screen(self):
+        arcade.draw_text("GAME OVER", SCREEN_WIDTH // 2, SCREEN_HEIGHT - 200,
+                         arcade.color.RED, 32, anchor_x="center", font_name="Courier New", bold=True)
 
-        function startGame() {
-            // Reset state
-            obstacles = [];
-            score = 0;
-            speedMultiplier = 1.0;
-            player.lane = 1;
-            player.x = LANES[1];
-            player.targetX = LANES[1];
-            obstacleSpawnTimer = 0;
+        arcade.draw_text(f"FINAL SCORE: {int(self.score)}", SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2,
+                         arcade.color.WHITE, 20, anchor_x="center", font_name="Courier New")
 
-            startScreen.style.display = 'none';
-            gameoverScreen.style.display = 'none';
-            gameActive = true;
+        arcade.draw_text("Press ENTER to Play Again", SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 100,
+                         arcade.color.GREEN, 16, anchor_x="center", font_name="Courier New", bold=True)
 
-            gameLoop();
-        }
+    def on_update(self, delta_time):
+        """All movement and game logic happens here."""
+        if self.state != "PLAYING":
+            return
 
-        function gameOver() {
-            gameActive = false;
-            finalScoreText.textContent = `SCORE: ${Math.floor(score)}`;
-            gameoverScreen.style.display = 'flex';
-        }
+        # 1. Score tracking & Speed progression
+        self.score += 0.15
+        self.speed_multiplier = 1.0 + (self.score / 250.0)
 
-        function spawnObstacle() {
-            // Pick a random lane
-            const laneIndex = Math.floor(Math.random() * 3);
+        # 2. Smooth player movement transition
+        dx = self.player_target_x - self.player_x
+        self.player_x += dx * 0.3  # Linear interpolation for sliding feel
 
-            // Randomize height and color slightly for variety
-            obstacles.push({
-                lane: laneIndex,
-                x: LANES[laneIndex],
-                y: -60,
-                width: LANE_WIDTH - 40,
-                height: 40,
-                color: '#ff0055'
-            });
-        }
+        # 3. Handle obstacle spawning
+        self.spawn_timer += 1
+        current_spawn_rate = max(25, self.spawn_rate - int(self.score / 15))
+        if self.spawn_timer >= current_spawn_rate:
+            lane = random.randint(0, 2)
+            self.obstacles.append({
+                'x': LANES[lane],
+                'y': SCREEN_HEIGHT + 30,
+                'lane': lane
+            })
+            self.spawn_timer = 0
 
-        function update() {
-            if (!gameActive) return;
+        # 4. Move obstacles & Check Collisions
+        for obs in self.obstacles[:]:
+            obs['y'] -= 6 * self.speed_multiplier
 
-            // Increment score over time
-            score += 0.15;
+            # Clean up out-of-bounds obstacles
+            if obs['y'] < -50:
+                self.obstacles.remove(obs)
+                continue
 
-            // Gradually increase speed as score goes up
-            speedMultiplier = 1 + (score / 300);
+            # Collision Math: Box check (Obstacle width/height + player tolerance margin)
+            obs_half_width = (LANE_WIDTH - 40) / 2
+            obs_half_height = 20
 
-            // Interpolate player position for smooth side-to-side transitions
-            const dx = player.targetX - player.x;
-            player.x += dx * 0.35; // Adjust this factor for faster/slower dash speed
+            if (abs(self.player_x - obs['x']) < (obs_half_width + 12) and
+                abs(self.player_y - obs['y']) < (obs_half_height + 15)):
+                self.state = "GAME_OVER"
 
-            // Scroll the road lines
-            roadOffset += (5 * speedMultiplier);
-            if (roadOffset >= 40) {
-                roadOffset = 0;
-            }
+    def on_key_press(self, key, modifiers):
+        """Handle keyboard inputs."""
+        if self.state in ["START", "GAME_OVER"]:
+            if key == arcade.key.ENTER:
+                self.setup()
+            return
 
-            // Spawn obstacles based on dynamic timer
-            obstacleSpawnTimer++;
-            const currentSpawnRate = Math.max(35, baseSpawnRate - (score / 15));
-            if (obstacleSpawnTimer >= currentSpawnRate) {
-                spawnObstacle();
-                obstacleSpawnTimer = 0;
-            }
+        if self.state == "PLAYING":
+            if key in [arcade.key.LEFT, arcade.key.A]:
+                if self.player_lane > 0:
+                    self.player_lane -= 1
+                    self.player_target_x = LANES[self.player_lane]
+            elif key in [arcade.key.RIGHT, arcade.key.D]:
+                if self.player_lane < 2:
+                    self.player_lane += 1
+                    self.player_target_x = LANES[self.player_lane]
 
-            // Update obstacles
-            for (let i = obstacles.length - 1; i >= 0; i--) {
-                let obs = obstacles[i];
-                obs.y += (5 * speedMultiplier);
+def main():
+    game = NeonRunner()
+    arcade.run()
 
-                // Check Collisions using simple box-to-circle approximation
-                const halfWidth = obs.width / 2;
-                const closestX = Math.max(obs.x - halfWidth, Math.min(player.x, obs.x + halfWidth));
-                const closestY = Math.max(obs.y, Math.min(player.y, obs.y + obs.height));
-
-                const distanceX = player.x - closestX;
-                const distanceY = player.y - closestY;
-                const distanceSquared = (distanceX * distanceX) + (distanceY * distanceY);
-
-                if (distanceSquared < (player.radius * player.radius)) {
-                    gameOver();
-                    return;
-                }
-
-                // Remove off-screen obstacles
-                if (obs.y > canvas.height + 50) {
-                    obstacles.splice(i, 1);
-                }
-            }
-        }
-
-        function draw() {
-            // Clear Screen
-            ctx.fillStyle = '#121212';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // Draw Lane Dividers
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-            ctx.lineWidth = 4;
-            ctx.setLineDash([20, 20]);
-
-            // Lane 1 divider
-            ctx.beginPath();
-            ctx.moveTo(LANE_WIDTH, -roadOffset);
-            ctx.lineTo(LANE_WIDTH, canvas.height);
-            ctx.stroke();
-
-            // Lane 2 divider
-            ctx.beginPath();
-            ctx.moveTo(LANE_WIDTH * 2, -roadOffset);
-            ctx.lineTo(LANE_WIDTH * 2, canvas.height);
-            ctx.stroke();
-            ctx.setLineDash([]); // Reset line dash
-
-            // Draw Obstacles
-            obstacles.forEach(obs => {
-                ctx.fillStyle = obs.color;
-                ctx.shadowColor = obs.color;
-                ctx.shadowBlur = 15;
-
-                // Draw obstacles as sleek rounded neon rectangles
-                ctx.beginPath();
-                ctx.roundRect(obs.x - obs.width / 2, obs.y, obs.width, obs.height, 8);
-                ctx.fill();
-            });
-
-            // Draw Player Ship/Runner (represented as a cool neon triangle)
-            ctx.shadowColor = player.color;
-            ctx.shadowBlur = 20;
-            ctx.fillStyle = player.color;
-
-            ctx.beginPath();
-            // Point 1 (Top Tip)
-            ctx.moveTo(player.x, player.y - player.radius);
-            // Point 2 (Bottom Left)
-            ctx.lineTo(player.x - player.radius, player.y + player.radius);
-            // Point 3 (Bottom Center Inner fold)
-            ctx.lineTo(player.x, player.y + (player.radius / 2));
-            // Point 4 (Bottom Right)
-            ctx.lineTo(player.x + player.radius, player.y + player.radius);
-            ctx.closePath();
-            ctx.fill();
-
-            // Reset shadows
-            ctx.shadowBlur = 0;
-
-            // Draw Score HUD
-            ctx.fillStyle = '#ffff00';
-            ctx.font = 'bold 18px "Courier New"';
-            ctx.textAlign = 'left';
-            ctx.fillText(`SCORE: ${Math.floor(score)}`, 20, 40);
-
-            // Speed multiplier display (arcade style)
-            ctx.fillStyle = '#00ffcc';
-            ctx.textAlign = 'right';
-            ctx.fillText(`x${speedMultiplier.toFixed(1)} SPD`, canvas.width - 20, 40);
-        }
-
-        function gameLoop() {
-            if (!gameActive) return;
-
-            update();
-            draw();
-            requestAnimationFrame(gameLoop);
-        }
-    </script>
-</body>
-</html>
+if __name__ == "__main__":
+    main()
