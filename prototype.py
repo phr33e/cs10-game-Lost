@@ -6,25 +6,21 @@ NUM_LANES = 20
 LANE_WIDTH = 40
 WIDTH = NUM_LANES * LANE_WIDTH
 HEIGHT = 600
-TITLE = "20-Lane Runner – Sprite-Only"
+TITLE = "20-Lane Runner – Neon Lanes"
 
 LANES = [LANE_WIDTH // 2 + i * LANE_WIDTH for i in range(NUM_LANES)]
 
 PLAYER_Y = 80
 PLAYER_SIZE = LANE_WIDTH - 10
 
-OBSTACLE_WIDTH = LANE_WIDTH - 6
-OBSTACLE_HEIGHT = 30
-
 
 class RunnerGame(arcade.Window):
     def __init__(self):
         super().__init__(WIDTH, HEIGHT, TITLE)
-
-        # Background color is just the clear color; no draw_rectangle
         arcade.set_background_color(arcade.color.BLACK)
 
-        # SpriteLists
+        # Sprite lists
+        self.bg_list = arcade.SpriteList()
         self.lane_list = arcade.SpriteList()
         self.player_list = arcade.SpriteList()
         self.obstacle_list = arcade.SpriteList()
@@ -35,6 +31,7 @@ class RunnerGame(arcade.Window):
         self.player_sprite = None
 
         self.score = 0
+        self.best_score = 0
         self.game_over = False
         self.spawn_timer = 0.0
         self.game_time = 0.0
@@ -43,16 +40,32 @@ class RunnerGame(arcade.Window):
         self.setup()
 
     def setup(self):
-        # Clear any existing sprites
+        # Clear sprites
+        self.bg_list = arcade.SpriteList()
         self.lane_list = arcade.SpriteList()
         self.player_list = arcade.SpriteList()
         self.obstacle_list = arcade.SpriteList()
         self.hud_list = arcade.SpriteList()
 
-        # Lanes: thin vertical sprites
+        # Background gradient effect: 3 tall bands
+        band_height = HEIGHT // 3
+        band_colors = [
+            (10, 10, 40),   # dark blueish
+            (15, 5, 50),    # purple
+            (5, 10, 35),    # teal
+        ]
+        for i, color in enumerate(band_colors):
+            band = arcade.SpriteSolidColor(WIDTH, band_height, color)
+            band.center_x = WIDTH // 2
+            band.center_y = band_height * i + band_height // 2
+            self.bg_list.append(band)
+
+        # Lane markers: alternating neon colors
+        lane_colors = [arcade.color.DARK_GRAY, (60, 60, 120)]
         for i in range(1, NUM_LANES):
             x = i * LANE_WIDTH
-            lane = arcade.SpriteSolidColor(2, HEIGHT, arcade.color.DARK_GRAY)
+            color = lane_colors[i % 2]
+            lane = arcade.SpriteSolidColor(2, HEIGHT, color)
             lane.center_x = x
             lane.center_y = HEIGHT // 2
             self.lane_list.append(lane)
@@ -67,30 +80,57 @@ class RunnerGame(arcade.Window):
         self.player_list.append(self.player_sprite)
 
         # HUD bar
-        hud_bg = arcade.SpriteSolidColor(WIDTH, 40, (0, 0, 0, 180))
+        hud_bg = arcade.SpriteSolidColor(WIDTH, 40, (0, 0, 0, 220))
         hud_bg.center_x = WIDTH // 2
         hud_bg.center_y = HEIGHT - 20
         self.hud_list.append(hud_bg)
 
-        # Game state
+        # Reset game state
         self.score = 0
         self.game_over = False
         self.spawn_timer = 0.0
         self.game_time = 0.0
         self.obstacle_speed = 7.0
 
+    def spawn_wave(self):
+        """Spawn a wave of mixed obstacle types."""
+        lanes_to_use = random.sample(LANES, k=random.randint(2, 5))
+
+        for x in lanes_to_use:
+            shape_type = random.choice(["block", "tall", "wide"])
+
+            if shape_type == "block":
+                w, h = LANE_WIDTH - 6, 26
+                color = arcade.color.RED_ORANGE
+            elif shape_type == "tall":
+                w, h = LANE_WIDTH - 14, 44
+                color = arcade.color.ORANGE_PEEL
+            else:  # wide
+                w, h = LANE_WIDTH - 2, 18
+                color = arcade.color.MAGENTA
+
+            obs = arcade.SpriteSolidColor(w, h, color)
+            obs.center_x = x
+            obs.center_y = HEIGHT + 40
+            self.obstacle_list.append(obs)
+
     # --- Drawing ---
 
     def on_draw(self):
         self.clear()
 
-        # Draw lanes, player, obstacles, HUD background
+        # Background & lanes
+        self.bg_list.draw()
         self.lane_list.draw()
+
+        # Obstacles and player
         self.obstacle_list.draw()
         self.player_list.draw()
+
+        # HUD bar
         self.hud_list.draw()
 
-        # Text is still drawn with draw_text
+        # HUD text
         arcade.draw_text(
             f"SCORE: {self.score}",
             10,
@@ -98,14 +138,29 @@ class RunnerGame(arcade.Window):
             arcade.color.WHITE,
             16,
         )
+        arcade.draw_text(
+            f"BEST: {self.best_score}",
+            200,
+            HEIGHT - 32,
+            arcade.color.LIGHT_GRAY,
+            14,
+        )
 
         if self.game_over:
             arcade.draw_text(
-                "GAME OVER - Press R to restart",
+                "GAME OVER",
                 WIDTH / 2,
-                HEIGHT / 2,
+                HEIGHT / 2 + 20,
                 arcade.color.YELLOW,
-                18,
+                24,
+                anchor_x="center",
+            )
+            arcade.draw_text(
+                "Press R to restart",
+                WIDTH / 2,
+                HEIGHT / 2 - 10,
+                arcade.color.WHITE,
+                16,
                 anchor_x="center",
             )
 
@@ -118,34 +173,28 @@ class RunnerGame(arcade.Window):
         self.game_time += delta_time
         self.score += 1
 
-        # Scale difficulty
+        # Difficulty scaling
         self.obstacle_speed = 7.0 + self.game_time * 0.4
 
-        # Spawn obstacles
+        # Spawn faster as you survive longer
         self.spawn_timer += delta_time
-        spawn_interval = max(0.25, 0.9 - self.game_time * 0.04)
+        spawn_interval = max(0.2, 0.85 - self.game_time * 0.03)
 
         if self.spawn_timer >= spawn_interval:
             self.spawn_timer = 0.0
-            lane_xs = random.sample(LANES, k=random.randint(1, 3))
-            for x in lane_xs:
-                obs = arcade.SpriteSolidColor(
-                    OBSTACLE_WIDTH, OBSTACLE_HEIGHT, arcade.color.RED
-                )
-                obs.center_x = x
-                obs.center_y = HEIGHT + 40
-                self.obstacle_list.append(obs)
+            self.spawn_wave()
 
-        # Move obstacles
+        # Move obstacles down
         for obs in self.obstacle_list:
             obs.center_y -= self.obstacle_speed
 
-        # Collision detection: use Arcade helper
+        # Collision detection
         hits = arcade.check_for_collision_with_list(
             self.player_sprite, self.obstacle_list
         )
         if hits:
             self.game_over = True
+            self.best_score = max(self.best_score, self.score)
 
         # Remove off-screen obstacles
         for obs in self.obstacle_list[:]:
