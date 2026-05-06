@@ -1,73 +1,124 @@
 import arcade
-import base64
-from io import BytesIO
+import random
 
-SCREEN_WIDTH = 400
-SCREEN_HEIGHT = 600
-SCREEN_TITLE = "20 Lane Forward"
+# Screen configuration
 NUM_LANES = 20
-LANE_WIDTH = SCREEN_WIDTH // NUM_LANES
-SPEED = 90
+LANE_WIDTH = 40
+WIDTH = NUM_LANES * LANE_WIDTH
+HEIGHT = 600
+TITLE = "20-Lane Subway Surfers MVP"
 
-IMAGE_B64 = """/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEAAkGBxAQEBAQEA8PEA8PDw8QDw8PDw8PDw8PFREWFhURExMYHSggGBolGxMTITEhJSkrLi4uFx8zODMtNygtLisBCgoKDg0OFxAQFy0dHR0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLf/AABEIAWgDuwMBIgACEQEDEQH/xAAbAAEAAgMBAQAAAAAAAAAAAAAABQYBBAcDAv/EADkQAAIBAwMCBAQEBQMDBQAAAAECAwAEEQUSITFBBhMiUWEHFDKBkaGx8BRCUmJy4SNCU2KS0f/EABoBAAMBAQEBAAAAAAAAAAAAAAABAgMEBQb/xAAxEQACAgEDAwIEBQQDAAAAAAAAAQIRAwQSITFBBVFhEyJxgZGh8DJCUpHR4fH/2gAMAwEAAhEDEQA/APg..."""
+LANES = [LANE_WIDTH // 2 + i * LANE_WIDTH for i in range(NUM_LANES)]
 
-class LaneGame(arcade.Window):
+PLAYER_Y = 80
+OBSTACLE_START_Y = HEIGHT + 30
+OBSTACLE_SPEED_START = 280
+OBSTACLE_SPEED_MAX = 650
+
+
+class SimpleRunner20(arcade.Window):
     def __init__(self):
-        super().__init__(SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_TITLE)
-        arcade.set_background_color(arcade.color.EERIE_BLACK)
-        self.player_lane = 9
-        self.background_offset = 0
+        super().__init__(WIDTH, HEIGHT, TITLE)
+        arcade.set_background_color(arcade.color.BLACK)
+        self.setup()
 
-        raw = base64.b64decode(IMAGE_B64)
-        self.img_texture = arcade.Texture.load_from_image(BytesIO(raw), "subway-surfers-game-1.jpg")
+    def setup(self):
+        self.player_lane = NUM_LANES // 2
+        self.score = 0
+        self.distance = 0
+        self.game_over = False
+        self.obstacle_speed = OBSTACLE_SPEED_START
+        self.spawn_timer = 0.0
 
-        self.player = arcade.Sprite()
-        self.player.texture = self.img_texture
-        self.player.scale = 0.2
-        self.player.center_y = 80
+        self.player_sprite = arcade.SpriteSolidColor(
+            LANE_WIDTH - 10, LANE_WIDTH - 10, arcade.color.CYAN
+        )
+        self.player_sprite.center_x = LANES[self.player_lane]
+        self.player_sprite.center_y = PLAYER_Y
 
-    def update_player_position(self):
-        self.player.center_x = (self.player_lane * LANE_WIDTH) + (LANE_WIDTH / 2)
-
-    def on_draw(self):
-        self.clear()
+        self.obstacle_list = arcade.SpriteList()
+        self.line_list = arcade.SpriteList()
 
         for i in range(1, NUM_LANES):
             x = i * LANE_WIDTH
-            for y in range(-40, SCREEN_HEIGHT + 40, 40):
-                arcade.draw_line(
-                    x,
-                    y + self.background_offset,
-                    x,
-                    y + 20 + self.background_offset,
-                    arcade.color.DIM_GRAY,
-                    1
-                )
+            line = arcade.SpriteSolidColor(2, HEIGHT, arcade.color.DARK_GRAY)
+            line.center_x = x
+            line.center_y = HEIGHT / 2
+            self.line_list.append(line)
 
-        self.player.draw()
+    def spawn_obstacle(self):
+        lane_index = random.randrange(NUM_LANES)
+        obstacle = arcade.SpriteSolidColor(LANE_WIDTH - 6, 30, arcade.color.RED)
+        obstacle.center_x = LANES[lane_index]
+        obstacle.center_y = OBSTACLE_START_Y
+        self.obstacle_list.append(obstacle)
+
+    def on_draw(self):
+        self.clear()
+        self.line_list.draw()
+        self.obstacle_list.draw()
+        self.player_sprite.draw()
+
+        arcade.draw_text(
+            f"SCORE: {self.score}",
+            15,
+            HEIGHT - 35,
+            arcade.color.WHITE,
+            16,
+        )
+
+        if self.game_over:
+            arcade.draw_text(
+                "GAME OVER - Press R to Restart",
+                WIDTH / 2,
+                HEIGHT / 2,
+                arcade.color.YELLOW,
+                18,
+                anchor_x="center",
+            )
 
     def on_update(self, delta_time):
-        self.background_offset -= SPEED * delta_time
-        if self.background_offset <= -40:
-            self.background_offset += 40
-        self.update_player_position()
+        if self.game_over:
+            return
+
+        self.distance += delta_time
+        self.score = int(self.distance * 10)
+        self.obstacle_speed = min(
+            OBSTACLE_SPEED_MAX, OBSTACLE_SPEED_START + self.distance * 15
+        )
+
+        self.spawn_timer += delta_time
+        spawn_interval = max(0.25, 0.9 - self.distance * 0.01)
+
+        if self.spawn_timer >= spawn_interval:
+            self.spawn_timer = 0
+            for _ in range(random.randint(1, 3)):
+                self.spawn_obstacle()
+
+        for obstacle in self.obstacle_list:
+            obstacle.center_y -= self.obstacle_speed * delta_time
+
+        hits = arcade.check_for_collision_with_list(self.player_sprite, self.obstacle_list)
+        if hits:
+            self.game_over = True
+
+        for obstacle in self.obstacle_list[:]:
+            if obstacle.top < 0:
+                obstacle.remove_from_sprite_lists()
 
     def on_key_press(self, key, modifiers):
-        if key == arcade.key.LEFT and self.player_lane > 0:
+        if key in [arcade.key.LEFT, arcade.key.A] and self.player_lane > 0:
             self.player_lane -= 1
-        elif key == arcade.key.RIGHT and self.player_lane < NUM_LANES - 1:
+            self.player_sprite.center_x = LANES[self.player_lane]
+
+        elif key in [arcade.key.RIGHT, arcade.key.D] and self.player_lane < NUM_LANES - 1:
             self.player_lane += 1
+            self.player_sprite.center_x = LANES[self.player_lane]
 
-    def on_mouse_press(self, x, y, button, modifiers):
-        if button == arcade.MOUSE_BUTTON_LEFT:
-            lane = int(x // LANE_WIDTH)
-            self.player_lane = max(0, min(NUM_LANES - 1, lane))
-
-
-def main():
-    LaneGame()
-    arcade.run()
+        elif key == arcade.key.R and self.game_over:
+            self.setup()
 
 
 if __name__ == "__main__":
-    main()
+    SimpleRunner20()
+    arcade.run()
