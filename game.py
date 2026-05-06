@@ -8,8 +8,9 @@ WIDTH = NUM_LANES * LANE_WIDTH  # 800 pixels wide
 HEIGHT = 600
 
 # Speed settings
-SLIDE_SPEED = 1.5      # Much slower sideways movement (Default was 5.0)
-FORWARD_SPEED = 3.5
+SLIDE_SPEED = 1.5      # Turning speed stays exactly the same
+FORWARD_SPEED = 3.5    # Normal forward speed
+BOOST_SPEED = 8.5      # Faster forward speed when in the 8-lane boost zone
 
 # Obstacle Spacing Settings
 SPAWN_RATE = 90
@@ -29,6 +30,8 @@ class SimpleRunner40(arcade.Window):
         self.player_x = LANES[self.player_lane]
         self.player_target_x = LANES[self.player_lane]
         self.obstacles = []  # Stores [x, y] coordinates
+        self.boost_zones = []  # Stores boost zones: {'start_lane': int, 'y': float, 'height': int}
+        self.is_boosting = False
         self.spawn_timer = 0
         self.score = 0
         self.keys_held.clear()  # Clear held keys on reset
@@ -36,27 +39,58 @@ class SimpleRunner40(arcade.Window):
     def on_draw(self):
         self.clear()
 
-        # Draw Player (Cyan square)
+        # 1. Draw Boost Zones (drawn first so they sit behind player and obstacles)
+        for bz in self.boost_zones:
+            width = 8 * LANE_WIDTH
+            center_x = (bz['start_lane'] * LANE_WIDTH) + (width / 2)
+            # Draw semi-transparent glowing green runway
+            arcade.draw_rect_filled(
+                arcade.XYWH(center_x, bz['y'], width, bz['height']),
+                (46, 204, 113, 80)  # Green with transparency
+            )
+
+        # 2. Draw Player (Cyan normally, Neon Green when boosting)
+        player_color = arcade.color.LIME_GREEN if self.is_boosting else arcade.color.CYAN
         arcade.draw_rect_filled(
             arcade.XYWH(self.player_x, 80, LANE_WIDTH - 4, LANE_WIDTH - 4),
-            arcade.color.CYAN
+            player_color
         )
 
-        # Draw Obstacles (Red rectangles)
+        # 3. Draw Obstacles (Red rectangles)
         for obs in self.obstacles:
             arcade.draw_rect_filled(
                 arcade.XYWH(obs[0], obs[1], LANE_WIDTH - 4, 30),
                 arcade.color.RED
             )
 
-        # Draw Score
-        arcade.draw_text(f"SCORE: {self.score}", 15, HEIGHT - 35, arcade.color.WHITE, 16)
+        # 4. Draw Score and Boost Indicator
+        arcade.draw_text(f"SCORE: {int(self.score)}", 15, HEIGHT - 35, arcade.color.WHITE, 16)
+
+        if self.is_boosting:
+            arcade.draw_text("BOOSTING! x2.5 SPD", WIDTH - 15, HEIGHT - 35,
+                             arcade.color.LIME_GREEN, 16, anchor_x="right", bold=True)
 
     def on_update(self, delta_time):
-        self.score += 1
         self.spawn_timer += 1
 
-        # Move player_x towards player_target_x slowly and steadily
+        # Check if the player is currently inside any of the active 8-lane boost zones
+        self.is_boosting = False
+        for bz in self.boost_zones:
+            zone_left = bz['start_lane'] * LANE_WIDTH
+            zone_right = (bz['start_lane'] + 8) * LANE_WIDTH
+            zone_bottom = bz['y'] - bz['height'] / 2
+            zone_top = bz['y'] + bz['height'] / 2
+
+            # If player's X is within the 8 lanes, and player's Y (80) is vertically on the pad
+            if zone_left <= self.player_x <= zone_right and zone_bottom <= 80 <= zone_top:
+                self.is_boosting = True
+                break
+
+        # Adjust game dynamics based on boost state
+        current_forward_speed = BOOST_SPEED if self.is_boosting else FORWARD_SPEED
+        self.score += 2.5 if self.is_boosting else 1.0
+
+        # Move player_x towards player_target_x slowly and steadily (SLIDE_SPEED remains constant)
         if self.player_x < self.player_target_x:
             self.player_x = min(self.player_target_x, self.player_x + SLIDE_SPEED)
         elif self.player_x > self.player_target_x:
@@ -72,8 +106,18 @@ class SimpleRunner40(arcade.Window):
                 self.player_lane += 1
                 self.player_target_x = LANES[self.player_lane]
 
-        # Spawn obstacles in tight horizontal clumps
+        # Spawn loop
         if self.spawn_timer >= SPAWN_RATE:
+            # 35% chance to spawn an 8-lane wide boost runway
+            if random.random() < 0.35:
+                start_lane = random.randint(0, NUM_LANES - 8)
+                self.boost_zones.append({
+                    'start_lane': start_lane,
+                    'y': HEIGHT + 150,
+                    'height': 300
+                })
+
+            # Spawn obstacle clumps
             num_clumps = random.choice([1, 2])
             for _ in range(num_clumps):
                 clump_center = random.randint(3, NUM_LANES - 4)
@@ -84,9 +128,15 @@ class SimpleRunner40(arcade.Window):
                         self.obstacles.append([LANES[lane_idx], HEIGHT + 20])
             self.spawn_timer = 0
 
+        # Move and clean up boost zones
+        for bz in self.boost_zones[:]:
+            bz['y'] -= current_forward_speed
+            if bz['y'] < -200:
+                self.boost_zones.remove(bz)
+
         # Move and check obstacles
         for obs in self.obstacles[:]:
-            obs[1] -= FORWARD_SPEED
+            obs[1] -= current_forward_speed
 
             # Collision detection
             if abs(self.player_x - obs[0]) < (LANE_WIDTH - 4) and abs(obs[1] - 80) < 23:
