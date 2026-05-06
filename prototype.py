@@ -1,7 +1,6 @@
 import arcade
 import random
 
-# Screen configuration
 NUM_LANES = 20
 LANE_WIDTH = 40
 WIDTH = NUM_LANES * LANE_WIDTH
@@ -9,7 +8,6 @@ HEIGHT = 600
 TITLE = "20-Lane Subway Surfers MVP"
 
 LANES = [LANE_WIDTH // 2 + i * LANE_WIDTH for i in range(NUM_LANES)]
-
 PLAYER_Y = 80
 OBSTACLE_START_Y = HEIGHT + 30
 OBSTACLE_SPEED_START = 280
@@ -36,6 +34,9 @@ class SimpleRunner20(arcade.Window):
         self.player_sprite.center_x = LANES[self.player_lane]
         self.player_sprite.center_y = PLAYER_Y
 
+        self.player_list = arcade.SpriteList()
+        self.player_list.append(self.player_sprite)
+
         self.obstacle_list = arcade.SpriteList()
         self.line_list = arcade.SpriteList()
 
@@ -47,9 +48,8 @@ class SimpleRunner20(arcade.Window):
             self.line_list.append(line)
 
     def spawn_obstacle(self):
-        lane_index = random.randrange(NUM_LANES)
         obstacle = arcade.SpriteSolidColor(LANE_WIDTH - 6, 30, arcade.color.RED)
-        obstacle.center_x = LANES[lane_index]
+        obstacle.center_x = random.choice(LANES)
         obstacle.center_y = OBSTACLE_START_Y
         self.obstacle_list.append(obstacle)
 
@@ -57,7 +57,7 @@ class SimpleRunner20(arcade.Window):
         self.clear()
         self.line_list.draw()
         self.obstacle_list.draw()
-        self.player_sprite.draw()
+        self.player_list.draw()
 
         arcade.draw_text(
             f"SCORE: {self.score}",
@@ -98,8 +98,7 @@ class SimpleRunner20(arcade.Window):
         for obstacle in self.obstacle_list:
             obstacle.center_y -= self.obstacle_speed * delta_time
 
-        hits = arcade.check_for_collision_with_list(self.player_sprite, self.obstacle_list)
-        if hits:
+        if arcade.check_for_collision_with_list(self.player_sprite, self.obstacle_list):
             self.game_over = True
 
         for obstacle in self.obstacle_list[:]:
