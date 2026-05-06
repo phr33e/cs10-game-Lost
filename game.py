@@ -26,11 +26,17 @@ class SimpleRunner(arcade.Window):
         arcade.draw_line(LANE_WIDTH * 2, 0, LANE_WIDTH * 2, HEIGHT, arcade.color.GRAY, 2)
 
         # Draw Player (Cyan square)
-        arcade.draw_rectangle_filled(LANES[self.player_lane], 80, 40, 40, arcade.color.CYAN)
+        arcade.draw_rect_filled(
+            arcade.XYWH(LANES[self.player_lane], 80, 40, 40),
+            arcade.color.CYAN
+        )
 
         # Draw Obstacles (Red rectangles)
         for obs in self.obstacles:
-            arcade.draw_rectangle_filled(obs[0], obs[1], 60, 40, arcade.color.RED)
+            arcade.draw_rect_filled(
+                arcade.XYWH(obs[0], obs[1], 60, 40),
+                arcade.color.RED
+            )
 
         # Draw Score
         arcade.draw_text(f"SCORE: {self.score}", 15, HEIGHT - 35, arcade.color.WHITE, 16)
