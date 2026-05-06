@@ -8,7 +8,7 @@ WIDTH = NUM_LANES * LANE_WIDTH  # 800 pixels wide
 HEIGHT = 600
 
 # Speed settings
-SLIDE_SPEED = 0.15     # Slightly increased for smoother continuous sliding
+SLIDE_SPEED = 5.0      # Constant speed (pixels per frame) for perfectly fluid sweeping
 FORWARD_SPEED = 3.5
 
 # Obstacle Spacing Settings
@@ -31,7 +31,7 @@ class SimpleRunner40(arcade.Window):
         self.obstacles = []  # Stores [x, y] coordinates
         self.spawn_timer = 0
         self.score = 0
-        self.keys_held.clear()  # Clear held keys on reset to prevent instant post-death movement
+        self.keys_held.clear()  # Clear held keys on reset
 
     def on_draw(self):
         self.clear()
@@ -56,13 +56,15 @@ class SimpleRunner40(arcade.Window):
         self.score += 1
         self.spawn_timer += 1
 
-        # Smoothly slide the player toward the target lane
-        dx = self.player_target_x - self.player_x
-        self.player_x += dx * SLIDE_SPEED
+        # Move player_x towards player_target_x at a constant velocity
+        if self.player_x < self.player_target_x:
+            self.player_x = min(self.player_target_x, self.player_x + SLIDE_SPEED)
+        elif self.player_x > self.player_target_x:
+            self.player_x = max(self.player_target_x, self.player_x - SLIDE_SPEED)
 
-        # Continuous movement check: If a key is held down and we are almost
-        # aligned with our target lane, immediately set the next target lane.
-        if abs(self.player_x - self.player_target_x) < 3:
+        # Continuous movement check: If we have fully arrived at our current target lane,
+        # immediately set the next lane target without stopping or pausing.
+        if self.player_x == self.player_target_x:
             if (arcade.key.LEFT in self.keys_held or arcade.key.A in self.keys_held) and self.player_lane > 0:
                 self.player_lane -= 1
                 self.player_target_x = LANES[self.player_lane]
@@ -99,8 +101,8 @@ class SimpleRunner40(arcade.Window):
         if key in [arcade.key.LEFT, arcade.key.A, arcade.key.RIGHT, arcade.key.D]:
             self.keys_held.add(key)
 
-        # Instant tap responsiveness (moves immediately on initial press)
-        if abs(self.player_x - self.player_target_x) < 3:
+        # Instant tap responsiveness (moves immediately on initial press if stationary)
+        if self.player_x == self.player_target_x:
             if key in [arcade.key.LEFT, arcade.key.A] and self.player_lane > 0:
                 self.player_lane -= 1
                 self.player_target_x = LANES[self.player_lane]
