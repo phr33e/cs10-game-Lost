@@ -8,7 +8,7 @@ WIDTH = NUM_LANES * LANE_WIDTH  # 800 pixels wide
 HEIGHT = 600
 
 # Speed settings
-SLIDE_SPEED = 5.0      # Constant speed (pixels per frame) for perfectly fluid sweeping
+SLIDE_SPEED = 1.5      # Much slower sideways movement (Default was 5.0)
 FORWARD_SPEED = 3.5
 
 # Obstacle Spacing Settings
@@ -56,7 +56,7 @@ class SimpleRunner40(arcade.Window):
         self.score += 1
         self.spawn_timer += 1
 
-        # Move player_x towards player_target_x at a constant velocity
+        # Move player_x towards player_target_x slowly and steadily
         if self.player_x < self.player_target_x:
             self.player_x = min(self.player_target_x, self.player_x + SLIDE_SPEED)
         elif self.player_x > self.player_target_x:
