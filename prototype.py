@@ -85,25 +85,29 @@ class RunnerGame(arcade.Window):
 
         # 2. Obstacles with Glow
         for obs in self.obstacle_list:
-            # Using keywords x, y, width, height for the Rect
-            glow_rect = arcade.Rect(
-                x=obs.center_x,
-                y=obs.center_y,
-                width=obs.width + 8,
-                height=obs.height + 8
+            # Manually defining the boundaries to satisfy the Rect requirements
+            arcade.draw_rect_filled(
+                arcade.Rect(
+                    left=obs.left - 4,
+                    right=obs.right + 4,
+                    bottom=obs.bottom - 4,
+                    top=obs.top + 4
+                ),
+                color=(*obs.color, 80)
             )
-            arcade.draw_rect_filled(rect=glow_rect, color=(*obs.color, 80))
             obs.draw()
 
         # 3. Player with Glow
         if not self.game_over:
-            player_glow_rect = arcade.Rect(
-                x=self.player_sprite.center_x,
-                y=self.player_sprite.center_y,
-                width=PLAYER_SIZE + 12,
-                height=PLAYER_SIZE + 12
+            arcade.draw_rect_filled(
+                arcade.Rect(
+                    left=self.player_sprite.left - 6,
+                    right=self.player_sprite.right + 6,
+                    bottom=self.player_sprite.bottom - 6,
+                    top=self.player_sprite.top + 6
+                ),
+                color=(0, 255, 255, 100)
             )
-            arcade.draw_rect_filled(rect=player_glow_rect, color=(0, 255, 255, 100))
             self.player_sprite.draw()
 
         self.particles.draw()
@@ -113,8 +117,16 @@ class RunnerGame(arcade.Window):
         arcade.draw_text(f"BEST: {int(self.best_score)}", WIDTH - 130, HEIGHT - 35, color=arcade.color.GRAY, font_size=14)
 
         if self.game_over:
-            modal_rect = arcade.Rect(x=WIDTH/2, y=HEIGHT/2, width=300, height=100)
-            arcade.draw_rect_filled(rect=modal_rect, color=(0, 0, 0, 220))
+            # Game Over Box
+            arcade.draw_rect_filled(
+                arcade.Rect(
+                    left=WIDTH/2 - 150,
+                    right=WIDTH/2 + 150,
+                    bottom=HEIGHT/2 - 50,
+                    top=HEIGHT/2 + 50
+                ),
+                color=(0, 0, 0, 220)
+            )
             arcade.draw_text("CRASHED", WIDTH/2, HEIGHT/2 + 10, color=arcade.color.RED, font_size=24, anchor_x="center", bold=True)
             arcade.draw_text("Press R to Reboot", WIDTH/2, HEIGHT/2 - 20, color=arcade.color.WHITE, font_size=14, anchor_x="center")
 
