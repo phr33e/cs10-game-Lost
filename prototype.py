@@ -360,6 +360,43 @@ class RunnerGame(arcade.Window):
             font_size=14,
             bold=True,
         )
+
+        energy_bar_y = bar_y - 22
+        energy_ratio = max(0, min(1, self.energy / ENERGY_MAX))
+        if energy_ratio > 0.5:
+            energy_color = arcade.color.GREEN
+        elif energy_ratio > 0.2:
+            energy_color = arcade.color.ORANGE
+        else:
+            energy_color = arcade.color.RED
+
+        arcade.draw_rect_outline(
+            arcade.LRBT(
+                left=bar_x,
+                right=bar_x + bar_width,
+                bottom=energy_bar_y,
+                top=energy_bar_y + bar_height,
+            ),
+            color=arcade.color.WHITE,
+            border_width=2,
+        )
+        arcade.draw_rect_filled(
+            arcade.LRBT(
+                left=bar_x,
+                right=bar_x + (bar_width * energy_ratio),
+                bottom=energy_bar_y,
+                top=energy_bar_y + bar_height,
+            ),
+            color=energy_color,
+        )
+        arcade.draw_text(
+            f"ENERGY: {int(self.energy)}",
+            bar_x + 210,
+            energy_bar_y + 2,
+            color=arcade.color.WHITE,
+            font_size=14,
+            bold=True,
+        )
         arcade.draw_text(
             f"DISTANCE: {int(self.distance)}m",
             WIDTH - 180,
