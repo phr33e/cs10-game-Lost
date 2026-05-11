@@ -24,6 +24,7 @@ AREA_FOOD_BONUS = 1
 HORIZON_Y = 440
 NIGHT_START_TIME = 55.0
 NIGHT_FULL_TIME = 80.0
+ENERGY_PICKUP_AMOUNT = 25
 
 # Game states
 STATE_INTRO = "intro"
@@ -43,6 +44,7 @@ class Obstacle:
         self.color = color
         self.width = width
         self.height = height
+        self.render_mode = "rock"
 
     def update(self, obstacle_speed):
         speed = self.speed if self.speed is not None else obstacle_speed
@@ -58,7 +60,59 @@ class Obstacle:
             ),
             color=(*self.color[:3], 80),
         )
-        arcade.draw_sprite(self.sprite)
+        if self.render_mode == "rock":
+            self.draw_rock()
+        else:
+            arcade.draw_sprite(self.sprite)
+
+    def draw_rock(self):
+        """Draw a rounded rock-like obstacle."""
+        x = self.sprite.center_x
+        y = self.sprite.center_y
+        width = self.sprite.width
+        height = self.sprite.height
+
+        base_color = self.color
+        shadow_color = (
+            max(0, base_color[0] - 35),
+            max(0, base_color[1] - 35),
+            max(0, base_color[2] - 35),
+        )
+        highlight_color = (
+            min(255, base_color[0] + 25),
+            min(255, base_color[1] + 25),
+            min(255, base_color[2] + 25),
+        )
+
+        rock_points = [
+            (x - width * 0.45, y - height * 0.2),
+            (x - width * 0.3, y + height * 0.35),
+            (x, y + height * 0.5),
+            (x + width * 0.35, y + height * 0.25),
+            (x + width * 0.45, y - height * 0.1),
+            (x + width * 0.1, y - height * 0.5),
+            (x - width * 0.25, y - height * 0.45),
+        ]
+
+        arcade.draw_ellipse_filled(x, y - 3, width * 1.05, height * 0.95, shadow_color)
+        arcade.draw_polygon_filled(rock_points, base_color)
+        arcade.draw_polygon_filled(
+            [
+                (x - width * 0.22, y + height * 0.18),
+                (x - width * 0.02, y + height * 0.34),
+                (x + width * 0.18, y + height * 0.16),
+                (x + width * 0.03, y - height * 0.02),
+            ],
+            highlight_color,
+        )
+        arcade.draw_line(
+            x - width * 0.2,
+            y - height * 0.1,
+            x + width * 0.18,
+            y + height * 0.08,
+            (255, 255, 255, 40),
+            2,
+        )
 
 
 class TideObstacle(Obstacle):
@@ -78,6 +132,7 @@ class CoastguardObstacle(Obstacle):
 
     def __init__(self, x, y):
         super().__init__(x, y, LANE_WIDTH - 8, 30, arcade.color.WHITE)
+        self.render_mode = "coastguard"
         self.spotted = False
         self.chase_timer = 0
         self.visibility_range = 150
@@ -101,6 +156,51 @@ class CoastguardObstacle(Obstacle):
             self.sprite.center_y -= obstacle_speed
 
 
+class EnergyPickup:
+    """Collectible that restores energy without using food."""
+
+    def __init__(self, x, y):
+        self.sprite = arcade.SpriteSolidColor(width=22, height=22, color=(255, 236, 120))
+        self.sprite.center_x = x
+        self.sprite.center_y = y
+        self.pulse = random.uniform(0, math.pi * 2)
+
+    def update(self, obstacle_speed):
+        self.sprite.center_y -= obstacle_speed
+        self.pulse += 0.12
+
+    def draw_with_glow(self):
+        glow_alpha = int(85 + 25 * (0.5 + 0.5 * math.sin(self.pulse)))
+        arcade.draw_circle_filled(
+            self.sprite.center_x,
+            self.sprite.center_y,
+            18,
+            (255, 240, 140, glow_alpha),
+        )
+        arcade.draw_circle_filled(
+            self.sprite.center_x,
+            self.sprite.center_y,
+            12,
+            (255, 245, 200, 220),
+        )
+        self.draw_lightning()
+
+    def draw_lightning(self):
+        """Draw a simple lightning-bolt icon."""
+        x = self.sprite.center_x
+        y = self.sprite.center_y
+        bolt = [
+            (x - 2, y + 11),
+            (x + 4, y + 1),
+            (x + 1, y + 1),
+            (x + 7, y - 10),
+            (x - 1, y - 2),
+            (x + 2, y - 2),
+            (x - 5, y + 11),
+        ]
+        arcade.draw_polygon_filled(bolt, (255, 200, 40))
+
+
 class RunnerGame(arcade.Window):
     def __init__(self):
         super().__init__(WIDTH, HEIGHT, TITLE)
@@ -110,6 +210,7 @@ class RunnerGame(arcade.Window):
 
         self.player_sprite = None
         self.obstacle_list = []
+        self.energy_pickups = []
         self.particles = arcade.SpriteList()
 
         self.player_lane = NUM_LANES // 2
@@ -186,6 +287,7 @@ class RunnerGame(arcade.Window):
         """Initialize game state."""
         self.state = STATE_PLAYING
         self.obstacle_list = []
+        self.energy_pickups = []
         self.particles = arcade.SpriteList()
 
         self.player_lane = NUM_LANES // 2
@@ -225,6 +327,15 @@ class RunnerGame(arcade.Window):
             if random.random() < 0.4:
                 self.spawn_tidal_wave()
 
+        pickup_chance = 0.12
+        if self.area == 2:
+            pickup_chance = 0.22
+        elif self.area >= 4:
+            pickup_chance = 0.16
+
+        if random.random() < pickup_chance:
+            self.spawn_energy_pickup()
+
     def spawn_basic_wave(self):
         """Spawn basic rocks."""
         num_obstacles = random.randint(1, min(4, 1 + int(self.game_time // 15)))
@@ -235,9 +346,9 @@ class RunnerGame(arcade.Window):
             height = random.choice([20, 30, 40])
             color = random.choice(
                 [
-                    arcade.color.ELECTRIC_CRIMSON,
-                    arcade.color.MAGENTA,
-                    arcade.color.HOT_PINK,
+                    (88, 92, 100),
+                    (104, 108, 116),
+                    (124, 128, 136),
                 ]
             )
             obstacle = Obstacle(x, HEIGHT + 50, LANE_WIDTH - 4, height, color)
@@ -256,12 +367,19 @@ class RunnerGame(arcade.Window):
         for lane_idx in lanes_to_use:
             x = LANES[lane_idx]
             height = random.choice([25, 35, 45])
+            color = random.choice(
+                [
+                    (96, 100, 108),
+                    (78, 84, 92),
+                    (116, 120, 128),
+                ]
+            )
             obstacle = TideObstacle(
                 x,
                 HEIGHT + 50,
                 LANE_WIDTH - 4,
                 height,
-                arcade.color.LIGHT_BLUE,
+                color,
                 speed=self.obstacle_speed * speed_multiplier,
             )
             self.obstacle_list.append(obstacle)
@@ -285,7 +403,7 @@ class RunnerGame(arcade.Window):
                     HEIGHT + 50,
                     LANE_WIDTH - 4,
                     random.choice([30, 40, 50]),
-                    arcade.color.DARK_SLATE_GRAY,
+                    (92, 96, 102),
                 )
                 self.obstacle_list.append(obstacle)
 
@@ -298,6 +416,12 @@ class RunnerGame(arcade.Window):
         else:
             self.spawn_basic_wave()
 
+    def spawn_energy_pickup(self):
+        """Spawn a lightning pickup that restores energy."""
+        x = random.choice(LANES)
+        pickup = EnergyPickup(x, HEIGHT + 50)
+        self.energy_pickups.append(pickup)
+
     def create_explosion(self, x, y):
         """Create particle explosion effect."""
         for _ in range(20):
@@ -307,6 +431,17 @@ class RunnerGame(arcade.Window):
             particle.change_x = random.uniform(-6, 6)
             particle.change_y = random.uniform(-6, 6)
             particle.lifetime = 60
+            self.particles.append(particle)
+
+    def create_lightning_burst(self, x, y):
+        """Create a bright burst for energy pickup feedback."""
+        for _ in range(14):
+            particle = arcade.SpriteSolidColor(width=4, height=4, color=(255, 240, 120))
+            particle.center_x = x + random.uniform(-8, 8)
+            particle.center_y = y + random.uniform(-8, 8)
+            particle.change_x = random.uniform(-4, 4)
+            particle.change_y = random.uniform(-4, 4)
+            particle.lifetime = 40
             self.particles.append(particle)
 
     def on_draw(self):
@@ -328,6 +463,9 @@ class RunnerGame(arcade.Window):
 
         for obstacle in self.obstacle_list:
             obstacle.draw_with_glow()
+
+        for pickup in self.energy_pickups:
+            pickup.draw_with_glow()
 
         self.draw_boat()
 
@@ -427,6 +565,14 @@ class RunnerGame(arcade.Window):
             HEIGHT - 55,
             color=arcade.color.LIGHT_CYAN,
             font_size=12,
+        )
+        arcade.draw_text(
+            "LIGHTNING RESTORES ENERGY",
+            WIDTH // 2,
+            HEIGHT - 48,
+            color=arcade.color.LIGHT_YELLOW,
+            font_size=11,
+            anchor_x="center",
         )
         arcade.draw_text(
             self.area_descriptions[self.area - 1]["title"],
@@ -844,6 +990,12 @@ class RunnerGame(arcade.Window):
             self.spawn_timer = 0.0
             self.spawn_wave()
 
+        pickup_speed = self.obstacle_speed * 0.92
+        for pickup in self.energy_pickups[:]:
+            pickup.update(pickup_speed)
+            if pickup.sprite.top < 0:
+                self.energy_pickups.remove(pickup)
+
         for obstacle in self.obstacle_list[:]:
             if isinstance(obstacle, CoastguardObstacle):
                 obstacle.update(self.obstacle_speed, self.player_sprite.center_x)
@@ -853,6 +1005,15 @@ class RunnerGame(arcade.Window):
 
             if obstacle.sprite.top < 0:
                 self.obstacle_list.remove(obstacle)
+
+        for pickup in self.energy_pickups[:]:
+            if arcade.check_for_collision(self.player_sprite, pickup.sprite):
+                self.energy = min(ENERGY_MAX, self.energy + ENERGY_PICKUP_AMOUNT)
+                self.create_lightning_burst(
+                    self.player_sprite.center_x,
+                    self.player_sprite.center_y,
+                )
+                self.energy_pickups.remove(pickup)
 
         for obstacle in self.obstacle_list[:]:
             if arcade.check_for_collision(self.player_sprite, obstacle.sprite):
