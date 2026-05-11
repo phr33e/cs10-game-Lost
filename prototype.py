@@ -118,7 +118,7 @@ class RunnerGame(arcade.Window):
         self.obstacle_speed = 7.0
         self.area = 1
         self.area_timer = 0.0
-        self.area_lengths = [1500, 1800, 2000, 2200]
+        self.area_lengths = [1500, 1800, 2000, 2200, 2500, 2800]
         self.difficulty_multiplier = 1.0
 
         self.intro_text = [
@@ -136,23 +136,33 @@ class RunnerGame(arcade.Window):
         self.area_descriptions = [
             (
                 "THE DEPARTURE",
-                "Africa's coast fades behind. The sea is calm.\n"
-                "Watch your Energy and ration your Food carefully.",
+                "Africa's coast fades behind. The sea is calm, but the journey has only just begun.\n"
+                "Watch your Energy closely and ration your Food carefully.",
             ),
             (
                 "OPEN WATERS",
-                "Far from shore now. The currents are unpredictable.\n"
-                "Stay alert for unexpected obstacles.",
+                "Far from shore now. The currents are unpredictable and the water feels endless.\n"
+                "Stay alert for sudden obstacles and keep your course steady.",
             ),
             (
                 "THE NARROWS",
-                "Cliffs close in from both sides. The channel narrows.\n"
-                "One wrong move and it's over.",
+                "Cliffs close in from both sides. The channel narrows and every move matters.\n"
+                "There is less room to react, so keep your eyes ahead.",
             ),
             (
-                "FINAL STRETCH",
-                "You can almost see the Lampedusa coast.\n"
-                "The Coastguard is active. Stay hidden. Don't get spotted.",
+                "THE WATCHLINE",
+                "You can almost see the coast now. The Coastguard is active and patrols are tighter.\n"
+                "Stay hidden when possible. One mistake can end the journey.",
+            ),
+            (
+                "THE APPROACH",
+                "The final waters open up ahead. The sea is rougher, faster, and less forgiving.\n"
+                "Keep moving, keep calm, and hold your line.",
+            ),
+            (
+                "LAMPEDUSA",
+                "The shore is close enough to make out. This is the last push.\n"
+                "If you have made it this far, stay sharp and finish the crossing.",
             ),
         ]
 
@@ -194,8 +204,12 @@ class RunnerGame(arcade.Window):
             self.spawn_tidal_wave()
         elif self.area == 3:
             self.spawn_narrows_wave()
+        elif self.area == 4:
+            self.spawn_coastguard_wave()
         else:
             self.spawn_coastguard_wave()
+            if random.random() < 0.4:
+                self.spawn_tidal_wave()
 
     def spawn_basic_wave(self):
         """Spawn basic rocks."""
@@ -406,7 +420,7 @@ class RunnerGame(arcade.Window):
             bold=True,
         )
         arcade.draw_text(
-            f"AREA: {self.area}/4",
+            f"AREA: {self.area}/{len(self.area_descriptions)}",
             WIDTH - 180,
             HEIGHT - 55,
             color=arcade.color.LIGHT_CYAN,
@@ -482,9 +496,11 @@ class RunnerGame(arcade.Window):
                 WIDTH // 2,
                 HEIGHT // 2 - 20,
                 color=arcade.color.WHITE,
-                font_size=14,
+                font_size=13,
                 anchor_x="center",
-                width=WIDTH - 100,
+                width=WIDTH - 60,
+                multiline=True,
+                align="center",
             )
 
         arcade.draw_text(
@@ -575,7 +591,7 @@ class RunnerGame(arcade.Window):
         self.area_timer += delta_time
         self.energy -= ENERGY_DRAIN_RATE * delta_time
 
-        if self.area < 4 and self.area_timer > 30:
+        if self.area < len(self.area_descriptions) and self.area_timer > 30:
             self.area += 1
             self.area_timer = 0
             self.state = STATE_AREA_TRANSITION
