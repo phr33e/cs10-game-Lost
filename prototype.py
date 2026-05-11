@@ -245,7 +245,12 @@ class RunnerGame(arcade.Window):
 
     def spawn_tidal_wave(self):
         """Spawn faster obstacles."""
-        num_obstacles = random.randint(2, 5)
+        if self.area == 2:
+            num_obstacles = random.randint(1, 3)
+            speed_multiplier = 1.25
+        else:
+            num_obstacles = random.randint(2, 5)
+            speed_multiplier = 1.5
         lanes_to_use = random.sample(range(NUM_LANES), k=num_obstacles)
 
         for lane_idx in lanes_to_use:
@@ -257,7 +262,7 @@ class RunnerGame(arcade.Window):
                 LANE_WIDTH - 4,
                 height,
                 arcade.color.LIGHT_BLUE,
-                speed=self.obstacle_speed * 1.5,
+                speed=self.obstacle_speed * speed_multiplier,
             )
             self.obstacle_list.append(obstacle)
 
@@ -830,6 +835,8 @@ class RunnerGame(arcade.Window):
         ) * LERP_SPEED
 
         self.obstacle_speed = 6.5 + (self.game_time * 0.22) + (self.area * 0.4)
+        if self.area == 2:
+            self.obstacle_speed -= 0.5
 
         spawn_rate = max(0.22, 0.7 - (self.game_time * 0.01))
         self.spawn_timer += delta_time
