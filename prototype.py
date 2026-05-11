@@ -39,7 +39,7 @@ class Obstacle:
 
     def draw_with_glow(self):
         arcade.draw_rect_filled(
-            arcade.Rect(
+            arcade.LRBT(
                 left=self.sprite.left - 4,
                 right=self.sprite.right + 4,
                 bottom=self.sprite.bottom - 4,
@@ -265,7 +265,7 @@ class RunnerGame(arcade.Window):
 
         # 3. Draw player with glow
         arcade.draw_rect_filled(
-            arcade.Rect(
+            arcade.LRBT(
                 left=self.player_sprite.left - 6,
                 right=self.player_sprite.right + 6,
                 bottom=self.player_sprite.bottom - 6,
@@ -287,15 +287,15 @@ class RunnerGame(arcade.Window):
 
         # Food bar background
         arcade.draw_rect_outline(
-            arcade.Rect(left=bar_x, right=bar_x + bar_width, bottom=bar_y, top=bar_y + bar_height),
-            color=arcade.color.WHITE, line_width=2
+            arcade.LRBT(left=bar_x, right=bar_x + bar_width, bottom=bar_y, top=bar_y + bar_height),
+            color=arcade.color.WHITE, border_width=2
         )
 
         # Food bar fill
         food_ratio = max(0, self.food / 15.0)
         food_color = arcade.color.GREEN if food_ratio > 0.3 else arcade.color.ORANGE if food_ratio > 0.1 else arcade.color.RED
         arcade.draw_rect_filled(
-            arcade.Rect(
+            arcade.LRBT(
                 left=bar_x,
                 right=bar_x + (bar_width * food_ratio),
                 bottom=bar_y,
@@ -316,7 +316,7 @@ class RunnerGame(arcade.Window):
     def draw_intro(self):
         """Draw introduction screen"""
         arcade.draw_rect_filled(
-            arcade.Rect(left=0, right=WIDTH, bottom=0, top=HEIGHT),
+            arcade.LRBT(left=0, right=WIDTH, bottom=0, top=HEIGHT),
             color=(5, 5, 15)
         )
 
@@ -338,7 +338,7 @@ class RunnerGame(arcade.Window):
     def draw_area_transition(self):
         """Draw area transition screen"""
         arcade.draw_rect_filled(
-            arcade.Rect(left=0, right=WIDTH, bottom=0, top=HEIGHT),
+            arcade.LRBT(left=0, right=WIDTH, bottom=0, top=HEIGHT),
             color=(0, 0, 0)
         )
 
@@ -356,13 +356,13 @@ class RunnerGame(arcade.Window):
         """Draw game over screen"""
         # Semi-transparent overlay
         arcade.draw_rect_filled(
-            arcade.Rect(left=0, right=WIDTH, bottom=0, top=HEIGHT),
+            arcade.LRBT(left=0, right=WIDTH, bottom=0, top=HEIGHT),
             color=(0, 0, 0, 180)
         )
 
         # Game Over box
         arcade.draw_rect_filled(
-            arcade.Rect(
+            arcade.LRBT(
                 left=WIDTH // 2 - 180,
                 right=WIDTH // 2 + 180,
                 bottom=HEIGHT // 2 - 100,
@@ -372,13 +372,13 @@ class RunnerGame(arcade.Window):
         )
 
         arcade.draw_rect_outline(
-            arcade.Rect(
+            arcade.LRBT(
                 left=WIDTH // 2 - 180,
                 right=WIDTH // 2 + 180,
                 bottom=HEIGHT // 2 - 100,
                 top=HEIGHT // 2 + 100
             ),
-            color=arcade.color.RED, line_width=3
+            color=arcade.color.RED, border_width=3
         )
 
         arcade.draw_text("JOURNEY ENDED", WIDTH // 2, HEIGHT // 2 + 60,
