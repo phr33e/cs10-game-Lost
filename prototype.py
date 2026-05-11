@@ -228,7 +228,7 @@ class RunnerGame(arcade.Window):
                 HEIGHT + 50,
                 LANE_WIDTH - 4,
                 height,
-                arcade.color.LIGHT_BLUE_1,
+                arcade.color.LIGHT_BLUE,
                 speed=self.obstacle_speed * 1.5,
             )
             self.obstacle_list.append(obstacle)
