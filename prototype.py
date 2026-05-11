@@ -22,6 +22,8 @@ INITIAL_FOOD = 18
 AREA_ENERGY_BONUS = 15
 AREA_FOOD_BONUS = 1
 HORIZON_Y = 440
+NIGHT_START_TIME = 55.0
+NIGHT_FULL_TIME = 80.0
 
 # Game states
 STATE_INTRO = "intro"
@@ -643,12 +645,28 @@ class RunnerGame(arcade.Window):
             anchor_x="center",
         )
 
+    def get_night_factor(self):
+        """Return a 0-1 blend value for the day-to-night transition."""
+        return max(
+            0.0,
+            min(1.0, (self.game_time - NIGHT_START_TIME) / (NIGHT_FULL_TIME - NIGHT_START_TIME)),
+        )
+
+    def blend_color(self, start_color, end_color, t):
+        """Blend two RGB colors."""
+        return (
+            int(start_color[0] * (1 - t) + end_color[0] * t),
+            int(start_color[1] * (1 - t) + end_color[1] * t),
+            int(start_color[2] * (1 - t) + end_color[2] * t),
+        )
+
     def draw_ocean_background(self):
         """Draw a layered sea and sky backdrop."""
-        sky_top = (166, 214, 255)
-        sky_bottom = (211, 236, 255)
-        ocean_top = (43, 119, 171)
-        ocean_bottom = (6, 42, 90)
+        night = self.get_night_factor()
+        sky_top = self.blend_color((166, 214, 255), (14, 24, 64), night)
+        sky_bottom = self.blend_color((211, 236, 255), (5, 10, 24), night)
+        ocean_top = self.blend_color((43, 119, 171), (6, 18, 46), night)
+        ocean_bottom = self.blend_color((6, 42, 90), (1, 6, 22), night)
 
         sky_height = HEIGHT - HORIZON_Y
         for i in range(sky_height):
@@ -678,26 +696,44 @@ class RunnerGame(arcade.Window):
 
         arcade.draw_rect_filled(
             arcade.LRBT(left=0, right=WIDTH, bottom=HORIZON_Y - 2, top=HORIZON_Y + 6),
-            color=(255, 255, 255, 18),
+            color=(255, 255, 255, int(18 * (1 - night) + 6 * night)),
         )
 
         sun_x = WIDTH - 110
         sun_y = HEIGHT - 100
-        arcade.draw_circle_filled(sun_x, sun_y, 34, (255, 240, 190, 180))
-        arcade.draw_circle_filled(sun_x, sun_y, 22, (255, 228, 153, 220))
+        if night < 0.6:
+            sun_alpha = int(180 * (1 - night * 1.3))
+            core_alpha = int(220 * (1 - night * 1.3))
+            arcade.draw_circle_filled(sun_x, sun_y, 34, (255, 240, 190, max(0, sun_alpha)))
+            arcade.draw_circle_filled(sun_x, sun_y, 22, (255, 228, 153, max(0, core_alpha)))
+        else:
+            moon_alpha = int(200 * min(1.0, (night - 0.5) * 2))
+            arcade.draw_circle_filled(sun_x, sun_y, 28, (230, 240, 255, moon_alpha))
+            arcade.draw_circle_filled(sun_x - 6, sun_y + 2, 24, (255, 255, 255, 0))
+
+        if night > 0.15:
+            star_alpha = int(160 * min(1.0, (night - 0.15) / 0.85))
+            star_positions = [
+                (70, 520), (145, 560), (240, 505), (320, 540), (430, 565),
+                (530, 515), (610, 550), (710, 530), (860, 555), (950, 510),
+            ]
+            for sx, sy in star_positions:
+                arcade.draw_circle_filled(sx, sy, 2, (255, 255, 255, star_alpha))
+                arcade.draw_circle_filled(sx, sy, 1, (255, 255, 255, min(255, star_alpha + 30)))
 
         wave_base = self.game_time * 3.5
         for row in range(10):
             y = 35 + row * 32
             offset = math.sin((wave_base + row) * 0.8) * 10
-            wave_color = (160, 230, 255, 28 if row % 2 == 0 else 18)
+            wave_color = self.blend_color((160, 230, 255), (95, 160, 220), night)
+            wave_alpha = int((28 if row % 2 == 0 else 18) * (1 - night) + (42 if row % 2 == 0 else 28) * night)
             for x in range(-40, WIDTH + 40, 80):
                 arcade.draw_arc_outline(
                     x + offset,
                     y,
                     60,
                     12,
-                    wave_color,
+                    (*wave_color, wave_alpha),
                     0,
                     180,
                     3,
@@ -709,7 +745,7 @@ class RunnerGame(arcade.Window):
                 start_y=0,
                 end_x=x,
                 end_y=HEIGHT,
-                color=(180, 220, 255, 14),
+                color=(180, 220, 255, int(14 * (1 - night) + 8 * night)),
                 line_width=1,
             )
 
