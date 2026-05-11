@@ -14,9 +14,12 @@ LANES = [LANE_WIDTH // 2 + i * LANE_WIDTH for i in range(NUM_LANES)]
 PLAYER_Y = 80
 PLAYER_SIZE = LANE_WIDTH - 12
 LERP_SPEED = 0.2
-ENERGY_DRAIN_RATE = 8.0
+ENERGY_DRAIN_RATE = 4.5
 ENERGY_MAX = 100
 ENERGY_PER_FOOD = 40
+INITIAL_FOOD = 18
+AREA_ENERGY_BONUS = 15
+AREA_FOOD_BONUS = 1
 
 # Game states
 STATE_INTRO = "intro"
@@ -108,7 +111,7 @@ class RunnerGame(arcade.Window):
         self.player_lane = NUM_LANES // 2
         self.target_x = LANES[self.player_lane]
         self.energy = ENERGY_MAX
-        self.food = 15
+        self.food = INITIAL_FOOD
         self.score = 0
         self.best_score = 0
         self.distance = 0
@@ -186,7 +189,7 @@ class RunnerGame(arcade.Window):
         self.player_sprite.center_y = PLAYER_Y
 
         self.energy = ENERGY_MAX
-        self.food = 15
+        self.food = INITIAL_FOOD
         self.score = 0
         self.distance = 0
         self.game_time = 0.0
@@ -594,6 +597,8 @@ class RunnerGame(arcade.Window):
         if self.area < len(self.area_descriptions) and self.area_timer > 30:
             self.area += 1
             self.area_timer = 0
+            self.energy = min(ENERGY_MAX, self.energy + AREA_ENERGY_BONUS)
+            self.food += AREA_FOOD_BONUS
             self.state = STATE_AREA_TRANSITION
             return
 
@@ -601,9 +606,9 @@ class RunnerGame(arcade.Window):
             self.target_x - self.player_sprite.center_x
         ) * LERP_SPEED
 
-        self.obstacle_speed = 7.0 + (self.game_time * 0.3) + (self.area * 0.5)
+        self.obstacle_speed = 6.5 + (self.game_time * 0.22) + (self.area * 0.4)
 
-        spawn_rate = max(0.1, 0.6 - (self.game_time * 0.015))
+        spawn_rate = max(0.22, 0.7 - (self.game_time * 0.01))
         self.spawn_timer += delta_time
         if self.spawn_timer >= spawn_rate:
             self.spawn_timer = 0.0
