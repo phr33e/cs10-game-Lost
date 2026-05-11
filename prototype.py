@@ -1,3 +1,4 @@
+import math
 import random
 
 import arcade
@@ -20,6 +21,7 @@ ENERGY_PER_FOOD = 40
 INITIAL_FOOD = 18
 AREA_ENERGY_BONUS = 15
 AREA_FOOD_BONUS = 1
+HORIZON_Y = 440
 
 # Game states
 STATE_INTRO = "intro"
@@ -131,42 +133,49 @@ class RunnerGame(arcade.Window):
             "Food and Energy are your only resources.",
             "Energy drains constantly. Food restores it.",
             "Hit obstacles to lose Energy. Lose all Energy, and the journey ends.",
+            "Each level shows a different part of the crossing and what people face there.",
             "Press SPACE to continue...",
         ]
         self.intro_index = 0
         self.intro_timer = 0.0
 
         self.area_descriptions = [
-            (
-                "THE DEPARTURE",
-                "Africa's coast fades behind. The sea is calm, but the journey has only just begun.\n"
-                "Watch your Energy closely and ration your Food carefully.",
-            ),
-            (
-                "OPEN WATERS",
-                "Far from shore now. The currents are unpredictable and the water feels endless.\n"
-                "Stay alert for sudden obstacles and keep your course steady.",
-            ),
-            (
-                "THE NARROWS",
-                "Cliffs close in from both sides. The channel narrows and every move matters.\n"
-                "There is less room to react, so keep your eyes ahead.",
-            ),
-            (
-                "THE WATCHLINE",
-                "You can almost see the coast now. The Coastguard is active and patrols are tighter.\n"
-                "Stay hidden when possible. One mistake can end the journey.",
-            ),
-            (
-                "THE APPROACH",
-                "The final waters open up ahead. The sea is rougher, faster, and less forgiving.\n"
-                "Keep moving, keep calm, and hold your line.",
-            ),
-            (
-                "LAMPEDUSA",
-                "The shore is close enough to make out. This is the last push.\n"
-                "If you have made it this far, stay sharp and finish the crossing.",
-            ),
+            {
+                "title": "THE DEPARTURE",
+                "journey": "This is the moment of leaving. The boat is small, the supplies are limited, and the choice to cross already carries fear and hope at the same time.",
+                "explanation": "People often begin by packing only what they can carry and leaving behind home, family, and certainty.",
+                "focus": "Use this opening stretch to build a safe reserve of Energy and Food.",
+            },
+            {
+                "title": "OPEN WATERS",
+                "journey": "Out here, the sea feels endless. There is no shoreline to follow, only distance, fatigue, and the pressure of keeping the boat moving.",
+                "explanation": "Long crossings test endurance. Every mistake costs more because help is far away.",
+                "focus": "Stay steady and avoid unnecessary collisions. Conserving Energy matters most here.",
+            },
+            {
+                "title": "THE NARROWS",
+                "journey": "The route tightens and the safe path shrinks. Currents, rocks, and tight passages leave less room to recover from a bad move.",
+                "explanation": "Migrants often have to navigate crowded or dangerous routes where one wrong turn can turn a delay into disaster.",
+                "focus": "React early and keep your boat centered when the channel closes in.",
+            },
+            {
+                "title": "THE WATCHLINE",
+                "journey": "Now the risk is not just the sea. Patrols become part of the journey, and staying hidden can matter as much as staying afloat.",
+                "explanation": "People on the move can face surveillance, interception, and the fear of being spotted when they are already exhausted.",
+                "focus": "Move carefully. Avoid attention and protect the Energy you still have.",
+            },
+            {
+                "title": "THE APPROACH",
+                "journey": "This is the hardest part for many crossings. The boat is tired, the body is tired, and the final stretch still asks for more.",
+                "explanation": "The last leg is where patience and rationing pay off. The journey becomes a test of discipline as much as survival.",
+                "focus": "Keep your line, use Food only when you truly need it, and do not panic.",
+            },
+            {
+                "title": "LAMPEDUSA",
+                "journey": "The shore is close. Relief is mixed with uncertainty, because reaching land is only one part of the story.",
+                "explanation": "Arriving can mean safety, but it can also mean more waiting, more checks, and the emotional weight of everything left behind.",
+                "focus": "Hold on to the last of your Energy and bring the boat home.",
+            },
         ]
 
         self.setup()
@@ -308,29 +317,12 @@ class RunnerGame(arcade.Window):
 
     def draw_game(self):
         """Draw main game screen."""
-        for x in range(0, WIDTH + 1, LANE_WIDTH):
-            arcade.draw_line(
-                start_x=x,
-                start_y=0,
-                end_x=x,
-                end_y=HEIGHT,
-                color=(40, 40, 80),
-                line_width=1,
-            )
+        self.draw_ocean_background()
 
         for obstacle in self.obstacle_list:
             obstacle.draw_with_glow()
 
-        arcade.draw_rect_filled(
-            arcade.LRBT(
-                left=self.player_sprite.left - 6,
-                right=self.player_sprite.right + 6,
-                bottom=self.player_sprite.bottom - 6,
-                top=self.player_sprite.top + 6,
-            ),
-            color=(0, 255, 255, 100),
-        )
-        arcade.draw_sprite(self.player_sprite)
+        self.draw_boat()
 
         for particle in self.particles:
             arcade.draw_sprite(particle)
@@ -429,6 +421,15 @@ class RunnerGame(arcade.Window):
             color=arcade.color.LIGHT_CYAN,
             font_size=12,
         )
+        arcade.draw_text(
+            self.area_descriptions[self.area - 1]["title"],
+            WIDTH // 2,
+            HEIGHT - 28,
+            color=arcade.color.WHITE,
+            font_size=16,
+            anchor_x="center",
+            bold=True,
+        )
 
     def draw_intro(self):
         """Draw introduction screen."""
@@ -478,30 +479,96 @@ class RunnerGame(arcade.Window):
 
     def draw_area_transition(self):
         """Draw area transition screen."""
+        self.draw_ocean_background()
         arcade.draw_rect_filled(
             arcade.LRBT(left=0, right=WIDTH, bottom=0, top=HEIGHT),
-            color=(0, 0, 0),
+            color=(0, 0, 0, 120),
         )
 
         if self.area <= len(self.area_descriptions):
-            title, desc = self.area_descriptions[self.area - 1]
+            stage = self.area_descriptions[self.area - 1]
+            panel_left = WIDTH // 2 - 270
+            panel_right = WIDTH // 2 + 270
+            panel_bottom = HEIGHT // 2 - 145
+            panel_top = HEIGHT // 2 + 120
+
+            arcade.draw_rect_filled(
+                arcade.LRBT(
+                    left=panel_left,
+                    right=panel_right,
+                    bottom=panel_bottom,
+                    top=panel_top,
+                ),
+                color=(10, 25, 48, 220),
+            )
+            arcade.draw_rect_outline(
+                arcade.LRBT(
+                    left=panel_left,
+                    right=panel_right,
+                    bottom=panel_bottom,
+                    top=panel_top,
+                ),
+                color=(120, 200, 255),
+                border_width=2,
+            )
+
             arcade.draw_text(
-                title,
+                f"STAGE {self.area} OF {len(self.area_descriptions)}",
                 WIDTH // 2,
-                HEIGHT // 2 + 50,
-                color=arcade.color.CYAN,
-                font_size=28,
+                HEIGHT // 2 + 95,
+                color=arcade.color.LIGHT_CYAN,
+                font_size=12,
                 anchor_x="center",
                 bold=True,
             )
             arcade.draw_text(
-                desc,
+                stage["title"],
                 WIDTH // 2,
-                HEIGHT // 2 - 20,
+                HEIGHT // 2 + 65,
+                color=arcade.color.CYAN,
+                font_size=26,
+                anchor_x="center",
+                bold=True,
+            )
+            arcade.draw_text(
+                stage["journey"],
+                WIDTH // 2,
+                HEIGHT // 2 + 5,
                 color=arcade.color.WHITE,
                 font_size=13,
                 anchor_x="center",
-                width=WIDTH - 60,
+                width=WIDTH - 100,
+                multiline=True,
+                align="center",
+            )
+            arcade.draw_text(
+                "What this stage means",
+                WIDTH // 2,
+                HEIGHT // 2 - 70,
+                color=arcade.color.LIGHT_CYAN,
+                font_size=12,
+                anchor_x="center",
+                bold=True,
+            )
+            arcade.draw_text(
+                stage["explanation"],
+                WIDTH // 2,
+                HEIGHT // 2 - 100,
+                color=arcade.color.WHITE,
+                font_size=12,
+                anchor_x="center",
+                width=WIDTH - 120,
+                multiline=True,
+                align="center",
+            )
+            arcade.draw_text(
+                f"How to survive: {stage['focus']}",
+                WIDTH // 2,
+                HEIGHT // 2 - 135,
+                color=arcade.color.LIGHT_YELLOW,
+                font_size=11,
+                anchor_x="center",
+                width=WIDTH - 120,
                 multiline=True,
                 align="center",
             )
@@ -575,6 +642,126 @@ class RunnerGame(arcade.Window):
             font_size=14,
             anchor_x="center",
         )
+
+    def draw_ocean_background(self):
+        """Draw a layered sea and sky backdrop."""
+        sky_top = (166, 214, 255)
+        sky_bottom = (211, 236, 255)
+        ocean_top = (43, 119, 171)
+        ocean_bottom = (6, 42, 90)
+
+        sky_height = HEIGHT - HORIZON_Y
+        for i in range(sky_height):
+            t = i / max(1, sky_height - 1)
+            color = (
+                int(sky_top[0] * (1 - t) + sky_bottom[0] * t),
+                int(sky_top[1] * (1 - t) + sky_bottom[1] * t),
+                int(sky_top[2] * (1 - t) + sky_bottom[2] * t),
+            )
+            arcade.draw_rect_filled(
+                arcade.LRBT(left=0, right=WIDTH, bottom=HORIZON_Y + i, top=HORIZON_Y + i + 1),
+                color=color,
+            )
+
+        ocean_height = HORIZON_Y
+        for i in range(ocean_height):
+            t = i / max(1, ocean_height - 1)
+            color = (
+                int(ocean_top[0] * (1 - t) + ocean_bottom[0] * t),
+                int(ocean_top[1] * (1 - t) + ocean_bottom[1] * t),
+                int(ocean_top[2] * (1 - t) + ocean_bottom[2] * t),
+            )
+            arcade.draw_rect_filled(
+                arcade.LRBT(left=0, right=WIDTH, bottom=i, top=i + 1),
+                color=color,
+            )
+
+        arcade.draw_rect_filled(
+            arcade.LRBT(left=0, right=WIDTH, bottom=HORIZON_Y - 2, top=HORIZON_Y + 6),
+            color=(255, 255, 255, 18),
+        )
+
+        sun_x = WIDTH - 110
+        sun_y = HEIGHT - 100
+        arcade.draw_circle_filled(sun_x, sun_y, 34, (255, 240, 190, 180))
+        arcade.draw_circle_filled(sun_x, sun_y, 22, (255, 228, 153, 220))
+
+        wave_base = self.game_time * 3.5
+        for row in range(10):
+            y = 35 + row * 32
+            offset = math.sin((wave_base + row) * 0.8) * 10
+            wave_color = (160, 230, 255, 28 if row % 2 == 0 else 18)
+            for x in range(-40, WIDTH + 40, 80):
+                arcade.draw_arc_outline(
+                    x + offset,
+                    y,
+                    60,
+                    12,
+                    wave_color,
+                    0,
+                    180,
+                    3,
+                )
+
+        for x in range(0, WIDTH + 1, LANE_WIDTH):
+            arcade.draw_line(
+                start_x=x,
+                start_y=0,
+                end_x=x,
+                end_y=HEIGHT,
+                color=(180, 220, 255, 14),
+                line_width=1,
+            )
+
+    def draw_boat(self):
+        """Draw the player as a small boat."""
+        x = self.player_sprite.center_x
+        y = self.player_sprite.center_y
+
+        arcade.draw_ellipse_filled(x + 2, y - 10, 34, 10, (0, 0, 0, 70))
+        arcade.draw_polygon_filled(
+            [
+                (x - 18, y - 8),
+                (x + 18, y - 8),
+                (x + 12, y - 18),
+                (x - 12, y - 18),
+            ],
+            (108, 62, 30),
+        )
+        arcade.draw_polygon_filled(
+            [
+                (x - 16, y - 7),
+                (x + 16, y - 7),
+                (x + 10, y - 15),
+                (x - 10, y - 15),
+            ],
+            (165, 96, 52),
+        )
+        arcade.draw_rect_filled(
+            arcade.LRBT(left=x - 7, right=x + 7, bottom=y - 4, top=y + 7),
+            color=(230, 235, 240),
+        )
+        arcade.draw_triangle_filled(
+            x - 2,
+            y + 17,
+            x - 2,
+            y - 2,
+            x + 17,
+            y + 6,
+            (245, 248, 255),
+        )
+        arcade.draw_triangle_filled(
+            x - 2,
+            y + 15,
+            x - 2,
+            y + 1,
+            x - 18,
+            y + 7,
+            (210, 220, 230),
+        )
+        arcade.draw_line(x - 2, y + 17, x - 2, y - 14, (80, 50, 30), 2)
+        arcade.draw_line(x - 16, y - 10, x + 16, y - 10, (255, 255, 255, 80), 2)
+        arcade.draw_circle_filled(x, y - 2, 3, (255, 255, 255))
 
     def on_update(self, delta_time):
         """Update game logic."""
