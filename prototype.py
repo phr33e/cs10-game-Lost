@@ -445,22 +445,15 @@ class RunnerGame(arcade.Window):
 
         # Collision detection
         for obs in self.obstacle_list:
-            if arcade.has_line_of_sight(
-                self.player_sprite.center_x,
-                self.player_sprite.center_y,
-                obs.sprite.center_x,
-                obs.sprite.center_y,
-                obstacles=None
-            ):
-                if arcade.check_for_collision(self.player_sprite, obs.sprite):
-                    if isinstance(obs, CoastguardObstacle) and obs.spotted:
-                        # Caught by coastguard
-                        self.game_over_event()
-                    else:
-                        # Hit obstacle
-                        self.energy -= 20
-                        self.create_explosion(self.player_sprite.center_x, self.player_sprite.center_y)
-                        self.obstacle_list.remove(obs)
+            if arcade.check_for_collision(self.player_sprite, obs.sprite):
+                if isinstance(obs, CoastguardObstacle) and obs.spotted:
+                    # Caught by coastguard
+                    self.game_over_event()
+                else:
+                    # Hit obstacle
+                    self.energy -= 20
+                    self.create_explosion(self.player_sprite.center_x, self.player_sprite.center_y)
+                    self.obstacle_list.remove(obs)
 
         # Update particles
         self.update_particles(delta_time)
