@@ -1170,10 +1170,10 @@ class RunnerGame(arcade.Window):
                 elif key in (arcade.key.RIGHT, arcade.key.D) and self.player_lane < NUM_LANES - 1:
                     self.player_lane += 1
                     self.target_x = LANES[self.player_lane]
-            else:
-                if key == arcade.key.SPACE and self.food > 0:
-                    self.energy = min(ENERGY_MAX, self.energy + ENERGY_PER_FOOD)
-                    self.food -= 1
+
+            if key == arcade.key.SPACE and self.food > 0:
+                self.energy = min(ENERGY_MAX, self.energy + ENERGY_PER_FOOD)
+                self.food -= 1
 
     def on_key_release(self, key, modifiers):
         """Track held keys for free movement."""
