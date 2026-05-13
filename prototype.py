@@ -275,6 +275,7 @@ class RunnerGame(arcade.Window):
                 "explanation": "People on the move can face surveillance, interception, and the fear of being spotted when they are already exhausted.",
                 "focus": "Move carefully. Avoid attention and protect the Energy you still have.",
                 "movement": "free",
+                "boat_speed": 170,
             },
             {
                 "title": "THE APPROACH",
@@ -282,6 +283,7 @@ class RunnerGame(arcade.Window):
                 "explanation": "The last leg is where patience and rationing pay off. The journey becomes a test of discipline as much as survival.",
                 "focus": "Keep your line, use Food only when you truly need it, and do not panic.",
                 "movement": "free",
+                "boat_speed": 145,
             },
             {
                 "title": "LAMPEDUSA",
@@ -289,6 +291,7 @@ class RunnerGame(arcade.Window):
                 "explanation": "Arriving can mean safety, but it can also mean more waiting, more checks, and the emotional weight of everything left behind.",
                 "focus": "Hold on to the last of your Energy and bring the boat home.",
                 "movement": "free",
+                "boat_speed": 130,
             },
         ]
 
@@ -328,9 +331,15 @@ class RunnerGame(arcade.Window):
 
     def refresh_control_mode(self):
         """Set player control style based on the current area."""
-        if self.area >= 4:
+        stage_index = min(self.area - 1, len(self.area_descriptions) - 1)
+        stage = self.area_descriptions[stage_index]
+        movement = stage.get("movement", "lane")
+
+        self.keys_down.clear()
+
+        if movement == "free":
             self.control_mode = "free"
-            self.player_move_speed = FREE_MOVE_SLOW_SPEED if self.area >= 5 else FREE_MOVE_SPEED
+            self.player_move_speed = stage.get("boat_speed", FREE_MOVE_SPEED)
             self.target_y = max(PLAYER_MIN_Y, min(self.target_y or PLAYER_Y, PLAYER_MAX_Y))
         else:
             self.control_mode = "lane"
@@ -608,6 +617,18 @@ class RunnerGame(arcade.Window):
             anchor_x="center",
             bold=True,
         )
+        if self.control_mode == "free":
+            control_text = f"WASD: free steering | Speed: {int(self.player_move_speed)}"
+        else:
+            control_text = "A/D: steer between lanes | SPACE: use food"
+        arcade.draw_text(
+            control_text,
+            WIDTH // 2,
+            HEIGHT - 68,
+            color=arcade.color.LIGHT_YELLOW,
+            font_size=10,
+            anchor_x="center",
+        )
 
     def draw_intro(self):
         """Draw introduction screen."""
@@ -745,6 +766,21 @@ class RunnerGame(arcade.Window):
                 HEIGHT // 2 - 135,
                 color=arcade.color.LIGHT_YELLOW,
                 font_size=11,
+                anchor_x="center",
+                width=WIDTH - 120,
+                multiline=True,
+                align="center",
+            )
+            if stage.get("movement") == "free":
+                controls = f"This stage opens up: use WASD to move freely. Boat speed: {stage.get('boat_speed', FREE_MOVE_SPEED)}"
+            else:
+                controls = "This stage keeps lane steering. Use A/D to shift left or right."
+            arcade.draw_text(
+                controls,
+                WIDTH // 2,
+                HEIGHT // 2 - 158,
+                color=arcade.color.CYAN,
+                font_size=10,
                 anchor_x="center",
                 width=WIDTH - 120,
                 multiline=True,
