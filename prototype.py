@@ -25,6 +25,10 @@ HORIZON_Y = 440
 NIGHT_START_TIME = 55.0
 NIGHT_FULL_TIME = 80.0
 ENERGY_PICKUP_AMOUNT = 25
+FREE_MOVE_SPEED = 180
+FREE_MOVE_SLOW_SPEED = 135
+PLAYER_MIN_Y = 55
+PLAYER_MAX_Y = 205
 
 # Game states
 STATE_INTRO = "intro"
@@ -212,9 +216,13 @@ class RunnerGame(arcade.Window):
         self.obstacle_list = []
         self.energy_pickups = []
         self.particles = arcade.SpriteList()
+        self.keys_down = set()
 
         self.player_lane = NUM_LANES // 2
         self.target_x = LANES[self.player_lane]
+        self.target_y = PLAYER_Y
+        self.control_mode = "lane"
+        self.player_move_speed = FREE_MOVE_SPEED
         self.energy = ENERGY_MAX
         self.food = INITIAL_FOOD
         self.score = 0
@@ -266,18 +274,21 @@ class RunnerGame(arcade.Window):
                 "journey": "Now the risk is not just the sea. Patrols become part of the journey, and staying hidden can matter as much as staying afloat.",
                 "explanation": "People on the move can face surveillance, interception, and the fear of being spotted when they are already exhausted.",
                 "focus": "Move carefully. Avoid attention and protect the Energy you still have.",
+                "movement": "free",
             },
             {
                 "title": "THE APPROACH",
                 "journey": "This is the hardest part for many crossings. The boat is tired, the body is tired, and the final stretch still asks for more.",
                 "explanation": "The last leg is where patience and rationing pay off. The journey becomes a test of discipline as much as survival.",
                 "focus": "Keep your line, use Food only when you truly need it, and do not panic.",
+                "movement": "free",
             },
             {
                 "title": "LAMPEDUSA",
                 "journey": "The shore is close. Relief is mixed with uncertainty, because reaching land is only one part of the story.",
                 "explanation": "Arriving can mean safety, but it can also mean more waiting, more checks, and the emotional weight of everything left behind.",
                 "focus": "Hold on to the last of your Energy and bring the boat home.",
+                "movement": "free",
             },
         ]
 
@@ -289,9 +300,12 @@ class RunnerGame(arcade.Window):
         self.obstacle_list = []
         self.energy_pickups = []
         self.particles = arcade.SpriteList()
+        self.keys_down = set()
 
         self.player_lane = NUM_LANES // 2
         self.target_x = LANES[self.player_lane]
+        self.target_y = PLAYER_Y
+        self.refresh_control_mode()
 
         self.player_sprite = arcade.SpriteSolidColor(
             width=PLAYER_SIZE,
@@ -311,6 +325,17 @@ class RunnerGame(arcade.Window):
         self.area = 1
         self.area_timer = 0.0
         self.difficulty_multiplier = 1.0
+
+    def refresh_control_mode(self):
+        """Set player control style based on the current area."""
+        if self.area >= 4:
+            self.control_mode = "free"
+            self.player_move_speed = FREE_MOVE_SLOW_SPEED if self.area >= 5 else FREE_MOVE_SPEED
+            self.target_y = max(PLAYER_MIN_Y, min(self.target_y or PLAYER_Y, PLAYER_MAX_Y))
+        else:
+            self.control_mode = "lane"
+            self.player_move_speed = FREE_MOVE_SPEED
+            self.target_y = PLAYER_Y
 
     def spawn_wave(self):
         """Spawn obstacles based on current area."""
@@ -973,12 +998,19 @@ class RunnerGame(arcade.Window):
             self.area_timer = 0
             self.energy = min(ENERGY_MAX, self.energy + AREA_ENERGY_BONUS)
             self.food += AREA_FOOD_BONUS
+            self.refresh_control_mode()
             self.state = STATE_AREA_TRANSITION
             return
 
-        self.player_sprite.center_x += (
-            self.target_x - self.player_sprite.center_x
-        ) * LERP_SPEED
+        if self.control_mode == "lane":
+            self.player_sprite.center_x += (
+                self.target_x - self.player_sprite.center_x
+            ) * LERP_SPEED
+            self.player_sprite.center_y += (
+                self.target_y - self.player_sprite.center_y
+            ) * LERP_SPEED
+        else:
+            self.update_free_movement(delta_time)
 
         self.obstacle_speed = 6.5 + (self.game_time * 0.22) + (self.area * 0.4)
         if self.area == 2:
@@ -1032,6 +1064,28 @@ class RunnerGame(arcade.Window):
         if self.energy <= 0:
             self.game_over_event()
 
+    def update_free_movement(self, delta_time):
+        """Move the boat freely in the later stages."""
+        move_step = self.player_move_speed * delta_time
+
+        if arcade.key.A in self.keys_down:
+            self.player_sprite.center_x -= move_step
+        if arcade.key.D in self.keys_down:
+            self.player_sprite.center_x += move_step
+        if arcade.key.W in self.keys_down:
+            self.player_sprite.center_y += move_step * 0.9
+        if arcade.key.S in self.keys_down:
+            self.player_sprite.center_y -= move_step * 0.9
+
+        self.player_sprite.center_x = max(
+            PLAYER_SIZE / 2,
+            min(WIDTH - PLAYER_SIZE / 2, self.player_sprite.center_x),
+        )
+        self.player_sprite.center_y = max(
+            PLAYER_MIN_Y,
+            min(PLAYER_MAX_Y, self.player_sprite.center_y),
+        )
+
     def update_particles(self):
         """Update particle effects."""
         for particle in self.particles[:]:
@@ -1070,17 +1124,25 @@ class RunnerGame(arcade.Window):
                 self.state = STATE_PLAYING
 
         elif self.state == STATE_PLAYING:
-            if key in (arcade.key.LEFT, arcade.key.A) and self.player_lane > 0:
-                self.player_lane -= 1
-                self.target_x = LANES[self.player_lane]
+            self.keys_down.add(key)
 
-            elif key in (arcade.key.RIGHT, arcade.key.D) and self.player_lane < NUM_LANES - 1:
-                self.player_lane += 1
-                self.target_x = LANES[self.player_lane]
+            if self.control_mode == "lane":
+                if key in (arcade.key.LEFT, arcade.key.A) and self.player_lane > 0:
+                    self.player_lane -= 1
+                    self.target_x = LANES[self.player_lane]
 
-            if key == arcade.key.SPACE and self.food > 0:
-                self.energy = min(ENERGY_MAX, self.energy + ENERGY_PER_FOOD)
-                self.food -= 1
+                elif key in (arcade.key.RIGHT, arcade.key.D) and self.player_lane < NUM_LANES - 1:
+                    self.player_lane += 1
+                    self.target_x = LANES[self.player_lane]
+            else:
+                if key == arcade.key.SPACE and self.food > 0:
+                    self.energy = min(ENERGY_MAX, self.energy + ENERGY_PER_FOOD)
+                    self.food -= 1
+
+    def on_key_release(self, key, modifiers):
+        """Track held keys for free movement."""
+        if key in self.keys_down:
+            self.keys_down.remove(key)
 
         elif self.state == STATE_GAME_OVER:
             if key == arcade.key.R:
