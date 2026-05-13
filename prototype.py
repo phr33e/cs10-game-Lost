@@ -15,6 +15,7 @@ LANES = [LANE_WIDTH // 2 + i * LANE_WIDTH for i in range(NUM_LANES)]
 PLAYER_Y = 80
 PLAYER_SIZE = LANE_WIDTH - 12
 LERP_SPEED = 0.2
+SLOW_LERP_SPEED = 0.12
 ENERGY_DRAIN_RATE = 4.5
 ENERGY_MAX = 100
 ENERGY_PER_FOOD = 40
@@ -223,6 +224,7 @@ class RunnerGame(arcade.Window):
         self.target_y = PLAYER_Y
         self.control_mode = "lane"
         self.player_move_speed = FREE_MOVE_SPEED
+        self.lane_lerp_speed = LERP_SPEED
         self.energy = ENERGY_MAX
         self.food = INITIAL_FOOD
         self.score = 0
@@ -268,6 +270,7 @@ class RunnerGame(arcade.Window):
                 "journey": "The route tightens and the safe path shrinks. Currents, rocks, and tight passages leave less room to recover from a bad move.",
                 "explanation": "Migrants often have to navigate crowded or dangerous routes where one wrong turn can turn a delay into disaster.",
                 "focus": "React early and keep your boat centered when the channel closes in.",
+                "speed_scale": 0.75,
             },
             {
                 "title": "THE WATCHLINE",
@@ -276,6 +279,7 @@ class RunnerGame(arcade.Window):
                 "focus": "Move carefully. Avoid attention and protect the Energy you still have.",
                 "movement": "free",
                 "boat_speed": 170,
+                "speed_scale": 0.9,
             },
             {
                 "title": "THE APPROACH",
@@ -284,6 +288,7 @@ class RunnerGame(arcade.Window):
                 "focus": "Keep your line, use Food only when you truly need it, and do not panic.",
                 "movement": "free",
                 "boat_speed": 145,
+                "speed_scale": 0.85,
             },
             {
                 "title": "LAMPEDUSA",
@@ -292,6 +297,7 @@ class RunnerGame(arcade.Window):
                 "focus": "Hold on to the last of your Energy and bring the boat home.",
                 "movement": "free",
                 "boat_speed": 130,
+                "speed_scale": 0.8,
             },
         ]
 
@@ -334,16 +340,19 @@ class RunnerGame(arcade.Window):
         stage_index = min(self.area - 1, len(self.area_descriptions) - 1)
         stage = self.area_descriptions[stage_index]
         movement = stage.get("movement", "lane")
+        speed_scale = stage.get("speed_scale", 1.0)
 
         self.keys_down.clear()
 
         if movement == "free":
             self.control_mode = "free"
-            self.player_move_speed = stage.get("boat_speed", FREE_MOVE_SPEED)
+            self.player_move_speed = stage.get("boat_speed", FREE_MOVE_SPEED) * speed_scale
+            self.lane_lerp_speed = LERP_SPEED * speed_scale
             self.target_y = max(PLAYER_MIN_Y, min(self.target_y or PLAYER_Y, PLAYER_MAX_Y))
         else:
             self.control_mode = "lane"
             self.player_move_speed = FREE_MOVE_SPEED
+            self.lane_lerp_speed = SLOW_LERP_SPEED if speed_scale < 1.0 else LERP_SPEED
             self.target_y = PLAYER_Y
 
     def spawn_wave(self):
@@ -1041,10 +1050,10 @@ class RunnerGame(arcade.Window):
         if self.control_mode == "lane":
             self.player_sprite.center_x += (
                 self.target_x - self.player_sprite.center_x
-            ) * LERP_SPEED
+            ) * self.lane_lerp_speed
             self.player_sprite.center_y += (
                 self.target_y - self.player_sprite.center_y
-            ) * LERP_SPEED
+            ) * self.lane_lerp_speed
         else:
             self.update_free_movement(delta_time)
 
