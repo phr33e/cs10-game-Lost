@@ -156,13 +156,17 @@ class MediterraneanJourney(arcade.Window):
                 arcade.color.DARK_GRAY
             )
 
-        # 3. Draw Coastguards
+        # 3. Draw Coastguards (Updated to pixelated boat style, exactly 2x player size)
         for cg in self.coastguards:
-            arcade.draw_rect_filled(arcade.XYWH(cg['x'], cg['y'], LANE_WIDTH * 4, LANE_WIDTH * 8), arcade.color.WHITE)
-            arcade.draw_rect_filled(arcade.XYWH(cg['x'], cg['y'] + 10, LANE_WIDTH * 4, 6), arcade.color.RED)
+            # Main white hull (12 wide, 28 tall)
+            arcade.draw_rect_filled(arcade.XYWH(cg['x'], cg['y'], 12, 28), arcade.color.WHITE)
+            # Coast Guard Red diagonal slash / block
+            arcade.draw_rect_filled(arcade.XYWH(cg['x'], cg['y'] + 4, 12, 6), arcade.color.RED)
+            # Dark wind-shield/cabin area
+            arcade.draw_rect_filled(arcade.XYWH(cg['x'], cg['y'] - 4, 8, 4), arcade.color.DARK_BLUE_GRAY)
 
             if cg['chasing'] and int(self.day_timer * 4) % 2 == 0:
-                arcade.draw_circle_outline(cg['x'], cg['y'], 20, arcade.color.RED, 2)
+                arcade.draw_circle_outline(cg['x'], cg['y'], 24, arcade.color.RED, 2)
 
         # 4. Day/Night Cycle & The Lantern Effect
         night_intensity = 0.0
@@ -294,7 +298,7 @@ class MediterraneanJourney(arcade.Window):
             self.coastguards.append({
                 'x': LANES[random.randint(10, NUM_LANES - 11)],
                 'y': HEIGHT + 100,
-                'chasing': True  # Force lock-on immediately
+                'chasing': True
             })
 
         # --- Storm Timer System ---
@@ -480,7 +484,7 @@ class MediterraneanJourney(arcade.Window):
                         if 0 <= lane_idx < NUM_LANES:
                             self.obstacles.append([LANES[lane_idx], center_y + y_offset])
 
-            # --- STANDARD COASTGUARD SPAWN (Zone 5 only, bypassed in test mode) ---
+            # --- STANDARD COASTGUARD SPAWN ---
             if in_zone_5 and len(self.coastguards) == 0 and not self.storm_active and not self.cg_test_mode:
                 if random.random() < 0.2:
                     self.coastguards.append({
@@ -497,33 +501,71 @@ class MediterraneanJourney(arcade.Window):
             if curr['y'] + (curr['height'] / 2) < 0:
                 self.currents.remove(curr)
 
-        # Update Coastguards
+        # Update Coastguards (Enhanced Physics & Bounding Logic)
         for cg in self.coastguards[:]:
+            # Detection check
             vis_radius_x = 10 * LANE_WIDTH
             vis_radius_y = 10 * LANE_WIDTH * 2
-
             if abs(self.player_x - cg['x']) <= vis_radius_x and abs(PLAYER_Y - cg['y']) <= vis_radius_y:
                 cg['chasing'] = True
 
-            if cg['chasing']:
-                if cg['x'] < self.player_x: cg['x'] += SLIDE_SPEED * 1.5
-                if cg['x'] > self.player_x: cg['x'] -= SLIDE_SPEED * 1.5
+            # Bounding scales adjusted for the 12x28 coast guard vs 6x6 obstacle blocks
+            cg_half_w = 6
+            cg_half_h = 14
+            obs_half_size = 3
 
-                if cg['y'] > PLAYER_Y: cg['y'] -= ((FORWARD_SPEED * 1.1) + self.current_active_speed)
-                if cg['y'] < PLAYER_Y: cg['y'] += (FORWARD_SPEED * 1.1)
+            if cg['chasing']:
+                # 1. Horizontal Tracking with Obstacle Safety Checking
+                old_x = cg['x']
+                if abs(cg['x'] - self.player_x) > 8:
+                    cg['x'] += (SLIDE_SPEED * 0.9) if self.player_x > cg['x'] else -(SLIDE_SPEED * 0.9)
+
+                # Check for side-collisions with obstacles
+                for obs in self.obstacles:
+                    if (abs(cg['x'] - obs[0]) < (cg_half_w + obs_half_size) and
+                        abs(cg['y'] - obs[1]) < (cg_half_h + obs_half_size)):
+                        cg['x'] = old_x # Revert tracking, do not clip through
+                        break
+
+                # 2. Vertical Logic (Intercept from front or pursue from behind)
+                old_y = cg['y']
+                if cg['y'] > PLAYER_Y:
+                    # Coming from the front: moves downwards relative to screen
+                    cg['y'] -= (self.current_active_speed + 1.0)
+
+                    # Intercept obstacle collision (Downwards)
+                    for obs in self.obstacles:
+                        if (abs(cg['x'] - obs[0]) < (cg_half_w + obs_half_size) and
+                            abs(cg['y'] - obs[1]) < (cg_half_h + obs_half_size)):
+                            cg['y'] = old_y - self.current_active_speed # Match scroll pace, blocked!
+                            break
+                else:
+                    # Player has passed: switch engine profile and chase upwards
+                    cg['y'] += 1.5
+
+                    # Intercept obstacle collision (Upwards)
+                    for obs in self.obstacles:
+                        if (abs(cg['x'] - obs[0]) < (cg_half_w + obs_half_size) and
+                            abs(cg['y'] - obs[1]) < (cg_half_h + obs_half_size)):
+                            cg['y'] = old_y - self.current_active_speed # Shoved backwards by wave flow
+                            break
             else:
+                # Unalerted drift
                 cg['y'] -= self.current_active_speed
 
-            if abs(self.player_x - cg['x']) < 15 and abs(PLAYER_Y - cg['y']) < 15:
+            # Player capture bounding check
+            if abs(self.player_x - cg['x']) < 9 and abs(PLAYER_Y - cg['y']) < 19:
                 self.caught = True
 
-            if cg['y'] < -200:
+            # Offscreen clean up
+            if cg['y'] < -200 or cg['y'] > HEIGHT + 500:
                 self.coastguards.remove(cg)
 
         # Move and check obstacles
         for obs in self.obstacles[:]:
             obs[1] -= self.current_active_speed
 
+            # Unforgiving Collision (No I-Frames)
             if abs(self.player_x - obs[0]) < 6 and abs(obs[1] - PLAYER_Y) < 10:
                 self.energy -= 70.0
                 self.engine_failure_chance += 0.05
@@ -548,7 +590,7 @@ class MediterraneanJourney(arcade.Window):
             elif key == arcade.key.KEY_4: self.reset(10001)
             elif key == arcade.key.KEY_5: self.reset(15001)
             elif key == arcade.key.KEY_6: self.reset(25001)
-            elif key == arcade.key.KEY_7: self.reset(15001, cg_test=True) # Starts at baseline zone 5 score context
+            elif key == arcade.key.KEY_7: self.reset(15001, cg_test=True)
             return
 
         # --- Handle End State Returns ---
