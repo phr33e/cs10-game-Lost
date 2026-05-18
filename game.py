@@ -8,12 +8,12 @@ WIDTH = NUM_LANES * LANE_WIDTH  # 1000 pixels wide
 HEIGHT = 600
 
 # Speed settings
-SLIDE_SPEED = 0.8      # Slow, steady sideways movement stays the same
-FORWARD_SPEED = 3.5    # Normal forward speed
+SLIDE_SPEED = 0.8
+FORWARD_SPEED = 3.5
 
 # Spacing & Current settings
 SPAWN_RATE = 90
-CURRENT_HEIGHT = 32000  # Long-lasting runway (at least 60 seconds)
+CURRENT_HEIGHT = 32000
 
 # Generate coordinates for the center of all 100 lanes
 LANES = [LANE_WIDTH // 2 + i * LANE_WIDTH for i in range(NUM_LANES)]
@@ -26,7 +26,7 @@ class SimpleRunner100(arcade.Window):
         self.reset()
 
     def reset(self):
-        self.player_lane = NUM_LANES // 2  # Start in the middle
+        self.player_lane = NUM_LANES // 2
         self.player_x = LANES[self.player_lane]
         self.player_target_x = LANES[self.player_lane]
         self.obstacles = []
@@ -38,16 +38,22 @@ class SimpleRunner100(arcade.Window):
         self.keys_held.clear()
 
         # --- Survival Mechanics ---
-        self.energy = 100.0          # Max 100, depletes over 3 minutes (180 seconds)
-        self.max_food_capacity = 5.0 # Max capacity, starts at 5
-        self.food_count = 5          # Current amount of food
-        self.invulnerable_timer = 0.0 # I-frames so you don't get hit by 3 rocks at once
+        self.energy = 100.0                 # Max 100, depletes over 180 seconds
+        self.max_food_percentage = 100.0    # Drops by 35% on hit
+        self.food_percentage = 100.0        # Current food supply
+        self.energy_buffer = 0.0            # Holds energy waiting to be applied
+        self.healing_rate = 20.0            # Heals 100 energy over 5 seconds
+        self.invulnerable_timer = 0.0
         self.game_over = False
+
+        # --- Day / Night Cycle ---
+        self.day_timer = 0.0                # Tracks total game time
+        self.day_length = 240.0             # 120s (2 min) day->night, 120s night->day
 
     def on_draw(self):
         self.clear()
 
-        # 0. Draw faint lanes (barely visible)
+        # 0. Draw faint lanes
         for x in LANES:
             arcade.draw_line(x, 0, x, HEIGHT, (25, 25, 25, 60), 1)
 
@@ -60,7 +66,7 @@ class SimpleRunner100(arcade.Window):
                 (46, 204, 113, 80)
             )
 
-        # 2. Draw Player (Blinks if invulnerable after getting hit)
+        # 2. Draw Player
         if self.invulnerable_timer <= 0 or int(self.invulnerable_timer * 15) % 2 == 0:
             player_color = arcade.color.LIME_GREEN if self.in_current else arcade.color.CYAN
             arcade.draw_rect_filled(
@@ -68,30 +74,51 @@ class SimpleRunner100(arcade.Window):
                 player_color
             )
 
-        # 3. Draw Obstacles (Dark Gray to look like Rocks)
+        # 3. Draw Obstacles
         for obs in self.obstacles:
             arcade.draw_rect_filled(
                 arcade.XYWH(obs[0], obs[1], LANE_WIDTH - 2, LANE_WIDTH - 2),
                 arcade.color.DARK_GRAY
             )
 
-        # 4. Low Energy Vignette Effect
+        # 4. Day/Night Cycle (FOV Reducer)
+        # Calculate where we are in the cycle (0.0 is Day, 1.0 is Peak Night)
+        cycle_progress = (self.day_timer % self.day_length) / (self.day_length / 2)
+        night_intensity = cycle_progress if cycle_progress <= 1.0 else 2.0 - cycle_progress
+
+        if night_intensity > 0.01 and not self.game_over:
+            # 1000 radius covers the screen. At peak night, drops down to exactly 10.
+            current_fov = 1000.0 - (990.0 * night_intensity)
+            alpha = int(255 * night_intensity)
+
+            # Draw a massive shape with a hole in the middle for the FOV
+            border_thickness = 4000
+            arcade.draw_circle_outline(
+                self.player_x, 80,
+                radius=current_fov + (border_thickness / 2),
+                color=(0, 0, 0, alpha),
+                border_width=border_thickness
+            )
+
+        # 5. Low Energy Vignette Effect (Stacks under the FOV)
         if self.energy < 30 and not self.game_over:
-            # Progressively darkens as energy gets closer to 0
             darkness = 1.0 - (max(self.energy, 0) / 30.0)
-            alpha = int(245 * darkness) # Caps at 245 (almost pitch black)
+            alpha = int(245 * darkness)
             arcade.draw_rect_filled(
                 arcade.XYWH(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT),
                 (0, 0, 0, alpha)
             )
 
-        # 5. Draw UI (Energy is explicitly hidden per instructions)
+        # 6. Draw UI
         arcade.draw_text(f"SCORE: {int(self.score)}", 15, HEIGHT - 35, arcade.color.WHITE, 16)
 
-        # Display food status
-        arcade.draw_text(f"FOOD: {self.food_count} / {int(self.max_food_capacity)}",
+        arcade.draw_text(f"FOOD: {self.food_percentage:.1f}% / {self.max_food_percentage:.1f}%",
                          15, HEIGHT - 60, arcade.color.ORANGE, 16, bold=True)
         arcade.draw_text("Press SPACE to eat", 15, HEIGHT - 80, arcade.color.GRAY, 12)
+
+        # Show if we are currently digesting food into energy
+        if self.energy_buffer > 0:
+            arcade.draw_text("REPLENISHING...", 15, HEIGHT - 100, arcade.color.YELLOW, 12, bold=True)
 
         if self.in_current:
             multiplier = self.current_active_speed / FORWARD_SPEED
@@ -108,8 +135,23 @@ class SimpleRunner100(arcade.Window):
             return
 
         self.spawn_timer += 1
+        self.day_timer += delta_time
 
-        # --- Energy Depletion (100 energy over 180 seconds) ---
+        # --- Energy Buffer Healing (Over time) ---
+        if self.energy_buffer > 0:
+            heal_step = self.healing_rate * delta_time
+            if heal_step > self.energy_buffer:
+                heal_step = self.energy_buffer # Don't over-heal past what's in the buffer
+
+            self.energy_buffer -= heal_step
+            self.energy += heal_step
+
+            # Cap energy at 100 and wipe remainder
+            if self.energy > 100.0:
+                self.energy = 100.0
+                self.energy_buffer = 0.0
+
+        # --- Base Energy Depletion (100 energy over 180 seconds) ---
         self.energy -= (100.0 / 180.0) * delta_time
         if self.energy <= 0:
             self.game_over = True
@@ -134,11 +176,11 @@ class SimpleRunner100(arcade.Window):
 
         # --- Fade Speed In/Out smoothly ---
         if self.current_active_speed < target_speed:
-            self.current_active_speed += 0.15  # Acceleration speed
+            self.current_active_speed += 0.15
             if self.current_active_speed > target_speed:
                 self.current_active_speed = target_speed
         elif self.current_active_speed > target_speed:
-            self.current_active_speed -= 0.15  # Deceleration speed
+            self.current_active_speed -= 0.15
             if self.current_active_speed < target_speed:
                 self.current_active_speed = target_speed
 
@@ -162,13 +204,11 @@ class SimpleRunner100(arcade.Window):
 
         # --- Spawn Loop ---
         if self.spawn_timer >= SPAWN_RATE:
-            # 1. Spawn currents
             if len(self.currents) == 0 and random.random() < 0.40:
                 roll = random.random()
-                # --- UPDATED: Max size is now 10 ---
-                if roll < 0.30: size = random.randint(1, 3)     # 30% chance for small (1-3)
-                elif roll < 0.70: size = random.randint(4, 7)   # 40% chance for medium (4-7)
-                else: size = random.randint(8, 10)              # 30% chance for large (8-10)
+                if roll < 0.30: size = random.randint(1, 3)
+                elif roll < 0.70: size = random.randint(4, 7)
+                else: size = random.randint(8, 10)
 
                 current_speed = 13.4 - (size * 0.4)
                 start_lane = random.randint(0, NUM_LANES - size)
@@ -180,16 +220,13 @@ class SimpleRunner100(arcade.Window):
                     'height': CURRENT_HEIGHT
                 })
 
-            # 2. Spawn Rock Clumps (Instead of a straight horizontal line)
             num_clumps = random.randint(2, 5)
             for _ in range(num_clumps):
-                # Pick a center point for the clump
                 center_lane = random.randint(10, NUM_LANES - 11)
                 center_y = HEIGHT + random.randint(20, 100)
-                clump_size = random.randint(5, 12)  # Number of rocks in the cluster
+                clump_size = random.randint(5, 12)
 
                 for _ in range(clump_size):
-                    # Scatter them around the center point
                     lane_offset = random.randint(-4, 4)
                     y_offset = random.randint(-40, 40)
 
@@ -212,15 +249,12 @@ class SimpleRunner100(arcade.Window):
             # --- Collision detection ---
             if self.invulnerable_timer <= 0:
                 if abs(self.player_x - obs[0]) < 8 and abs(obs[1] - 80) < 14:
-                    # Penalty: Lose 70 Energy
                     self.energy -= 70.0
 
-                    # Penalty: Max food capacity reduced by 35%
-                    self.max_food_capacity *= 0.65
-                    if self.food_count > int(self.max_food_capacity):
-                        self.food_count = int(self.max_food_capacity)
+                    self.max_food_percentage *= 0.65
+                    if self.food_percentage > self.max_food_percentage:
+                        self.food_percentage = self.max_food_percentage
 
-                    # Give 1 second of invincibility so clumps don't instantly kill you
                     self.invulnerable_timer = 1.0
                     self.obstacles.remove(obs)
                     continue
@@ -248,10 +282,19 @@ class SimpleRunner100(arcade.Window):
 
         # --- Use Food Mechanic ---
         if key == arcade.key.SPACE:
-            if self.food_count > 0 and self.energy < 100:
-                self.food_count -= 1
-                # Replenish 40 energy per food eaten
-                self.energy = min(100.0, self.energy + 40.0)
+            if self.food_percentage > 0 and self.energy < 100:
+                # Take a random bite size (between 5% and 25%)
+                food_to_eat = random.uniform(5.0, 25.0)
+
+                # Make sure we don't eat more than we actually have left
+                if food_to_eat > self.food_percentage:
+                    food_to_eat = self.food_percentage
+
+                self.food_percentage -= food_to_eat
+
+                # Add it to the buffer to be converted to energy over time
+                # 1% food eaten = 1 energy to heal
+                self.energy_buffer += food_to_eat
 
     def on_key_release(self, key, modifiers):
         self.keys_held.discard(key)
