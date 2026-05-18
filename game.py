@@ -2,13 +2,13 @@ import arcade
 import random
 
 # Screen configuration
-NUM_LANES = 100
-LANE_WIDTH = 10
-WIDTH = NUM_LANES * LANE_WIDTH
-HEIGHT = 600
+NUM_LANES = 150        # Increased from 100
+LANE_WIDTH = 8         # Slightly thinner to fit on screen
+WIDTH = NUM_LANES * LANE_WIDTH  # 1200 pixels wide
+HEIGHT = 900           # Taller window for more front/back visibility
 
 # Player position
-PLAYER_Y = HEIGHT // 2
+PLAYER_Y = HEIGHT // 2  # Middle of the screen (now 450)
 
 # Speed settings
 SLIDE_SPEED = 0.25
@@ -48,9 +48,9 @@ class SimpleRunner100(arcade.Window):
         self.invulnerable_timer = 0.0
 
         # --- Engine Failure Mechanics ---
-        self.engine_failure_chance = 0.01   # Starts at 1%
+        self.engine_failure_chance = 0.01
         self.engine_check_timer = 0.0
-        self.next_engine_check = random.uniform(300.0, 420.0) # Every 5 to 7 mins
+        self.next_engine_check = random.uniform(300.0, 420.0)
         self.engine_failed = False
         self.engine_repair_timer = 0.0
 
@@ -95,9 +95,10 @@ class SimpleRunner100(arcade.Window):
                 night_intensity = 2.0 - (time_in_cycle / self.night_transition_speed)
 
         if night_intensity > 0.01 and not self.game_over and not self.rescued:
-            current_fov = 1200.0 - (1100.0 * night_intensity)
+            # Expanded FOV math for the larger screen
+            current_fov = 1500.0 - (1300.0 * night_intensity)
             num_bands = 15
-            max_radius = 1500
+            max_radius = 2000
             band_thickness = (max_radius - current_fov) / num_bands
 
             for i in range(num_bands):
@@ -178,12 +179,10 @@ class SimpleRunner100(arcade.Window):
         else:
             self.engine_check_timer += delta_time
             if self.engine_check_timer >= self.next_engine_check:
-                # Roll the dice
                 if random.random() < self.engine_failure_chance:
                     self.engine_failed = True
-                    self.engine_repair_timer = 60.0 # Engine dead for 60 seconds
+                    self.engine_repair_timer = 60.0
 
-                # Reset timer for the next check (5 to 7 mins)
                 self.engine_check_timer = 0.0
                 self.next_engine_check = random.uniform(300.0, 420.0)
 
@@ -212,7 +211,6 @@ class SimpleRunner100(arcade.Window):
         self.in_current = False
         target_speed = FORWARD_SPEED
 
-        # If engine failed, override normal speeds to a crawl
         if self.engine_failed:
             target_speed = FORWARD_SPEED * 0.1
         else:
@@ -255,13 +253,11 @@ class SimpleRunner100(arcade.Window):
         # --- Geographical Stages Spawn Logic ---
         if self.spawn_timer >= SPAWN_RATE:
 
-            # Determine Current Geographic Zone
             in_libyan_coast = self.score < 5000
             in_open_mediterranean = 5000 <= self.score < 15000
             in_strait_of_sicily = 15000 <= self.score < 25000
             in_lampedusa_approach = self.score >= 25000
 
-            # Currents spawn in the Open Med and Strait of Sicily
             if in_open_mediterranean or in_strait_of_sicily:
                 if len(self.currents) == 0 and random.random() < 0.40:
                     roll = random.random()
@@ -279,7 +275,6 @@ class SimpleRunner100(arcade.Window):
                         'height': CURRENT_HEIGHT
                     })
 
-            # Spawn Rock Clumps based on Zone
             if in_libyan_coast:
                 num_clumps = random.randint(1, 3)
                 base_clump_size = (1, 3)
@@ -289,7 +284,7 @@ class SimpleRunner100(arcade.Window):
             elif in_strait_of_sicily:
                 num_clumps = random.randint(4, 7)
                 base_clump_size = (6, 12)
-            else: # Lampedusa Approach (Final stretch, dense coastal rocks)
+            else:
                 num_clumps = random.randint(6, 10)
                 base_clump_size = (8, 15)
 
@@ -308,22 +303,20 @@ class SimpleRunner100(arcade.Window):
 
             self.spawn_timer = 0
 
-        # Move currents
         for curr in self.currents[:]:
             curr['y'] -= self.current_active_speed
             if curr['y'] + (curr['height'] / 2) < 0:
                 self.currents.remove(curr)
 
-        # Move and check obstacles
         for obs in self.obstacles[:]:
             obs[1] -= self.current_active_speed
 
-            # --- Collision detection ---
+            # --- Updated Collision detection for thinner hitboxes ---
             if self.invulnerable_timer <= 0:
-                if abs(self.player_x - obs[0]) < 8 and abs(obs[1] - PLAYER_Y) < 13:
+                # Player width gap is now 6, height gap is 10
+                if abs(self.player_x - obs[0]) < 6 and abs(obs[1] - PLAYER_Y) < 10:
                     self.energy -= 70.0
 
-                    # Taking a hit increases the chance of an engine failure by 5%
                     self.engine_failure_chance += 0.05
 
                     capacity_loss_percent = random.uniform(0.15, 0.45)
