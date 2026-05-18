@@ -41,17 +41,18 @@ class SimpleRunner100(arcade.Window):
         self.keys_held.clear()
 
         # --- Survival Mechanics ---
-        self.energy = 100.0                 # Max 100, depletes over 180 seconds
-        self.max_food_percentage = 100.0    # Drops by 35% on hit
-        self.food_percentage = 100.0        # Current food supply
-        self.energy_buffer = 0.0            # Holds energy waiting to be applied
-        self.healing_rate = 20.0            # Heals 100 energy over 5 seconds
+        self.energy = 100.0
+        self.max_food_percentage = 100.0
+        self.food_percentage = 100.0
+        self.energy_buffer = 0.0
+        self.healing_rate = 20.0
         self.invulnerable_timer = 0.0
         self.game_over = False
 
         # --- Day / Night Cycle ---
-        self.day_timer = 0.0                # Tracks total game time
-        self.day_length = 240.0             # 120s (2 min) day->night, 120s night->day
+        self.day_timer = 0.0
+        self.morning_duration = 180.0       # 3 full minutes of pure daylight
+        self.night_transition_speed = 1200.0 # Takes 20 minutes (20x slower) to reach peak night
 
     def on_draw(self):
         self.clear()
@@ -76,32 +77,49 @@ class SimpleRunner100(arcade.Window):
                 arcade.color.DARK_GRAY
             )
 
-        # 3. Day/Night Cycle (FOV Reducer)
-        cycle_progress = (self.day_timer % self.day_length) / (self.day_length / 2)
-        night_intensity = cycle_progress if cycle_progress <= 1.0 else 2.0 - cycle_progress
+        # 3. Day/Night Cycle (Encroaching Gradient FOV)
+        night_intensity = 0.0
+        if self.day_timer > self.morning_duration:
+            # Calculate how far into the night cycle we are
+            time_in_cycle = (self.day_timer - self.morning_duration) % (self.night_transition_speed * 2)
+            if time_in_cycle < self.night_transition_speed:
+                night_intensity = time_in_cycle / self.night_transition_speed
+            else:
+                # Slowly transition back to day
+                night_intensity = 2.0 - (time_in_cycle / self.night_transition_speed)
 
         if night_intensity > 0.01 and not self.game_over:
-            current_fov = 1000.0 - (990.0 * night_intensity)
-            alpha = int(255 * night_intensity)
+            # Max FOV is 1200 (off screen). Minimum FOV is 100 (always see adjacent lanes).
+            current_fov = 1200.0 - (1100.0 * night_intensity)
 
-            border_thickness = 4000
-            arcade.draw_circle_outline(
-                self.player_x, PLAYER_Y,
-                radius=current_fov + (border_thickness / 2),
-                color=(0, 0, 0, alpha),
-                border_width=border_thickness
-            )
+            # Draw gradient bands so darkness creeps in from the edges
+            num_bands = 15
+            max_radius = 1500
+            band_thickness = (max_radius - current_fov) / num_bands
+
+            for i in range(num_bands):
+                r = current_fov + (i * band_thickness)
+                # Alpha interpolates so the inner edge is completely soft
+                band_alpha = int((255 * night_intensity) * ((i + 1) / num_bands))
+
+                arcade.draw_circle_outline(
+                    self.player_x, PLAYER_Y,
+                    radius=r + (band_thickness / 2),
+                    color=(0, 0, 0, band_alpha),
+                    border_width=band_thickness + 2 # +2 prevents pixel gaps between bands
+                )
 
         # 4. Low Energy Vignette Effect
         if self.energy < 30 and not self.game_over:
             darkness = 1.0 - (max(self.energy, 0) / 30.0)
-            alpha = int(245 * darkness)
+            # Capped at 200 so you never go completely blind just from low energy
+            alpha = int(200 * darkness)
             arcade.draw_rect_filled(
                 arcade.XYWH(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT),
                 (0, 0, 0, alpha)
             )
 
-        # 5. Draw Player (Drawn LAST so they are always visible on top of the darkness)
+        # 5. Draw Player (Drawn LAST so they are always visible)
         if self.invulnerable_timer <= 0 or int(self.invulnerable_timer * 15) % 2 == 0:
             player_color = arcade.color.LIME_GREEN if self.in_current else arcade.color.CYAN
             arcade.draw_rect_filled(
@@ -243,7 +261,6 @@ class SimpleRunner100(arcade.Window):
 
             # --- Collision detection ---
             if self.invulnerable_timer <= 0:
-                # Updated collision to match the new PLAYER_Y
                 if abs(self.player_x - obs[0]) < 8 and abs(obs[1] - PLAYER_Y) < 14:
                     self.energy -= 70.0
 
