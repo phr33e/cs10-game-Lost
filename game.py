@@ -21,8 +21,6 @@ CURRENT_HEIGHT = 32000
 LANES = [LANE_WIDTH // 2 + i * LANE_WIDTH for i in range(NUM_LANES)]
 
 # --- Custom Pixel Art Boat ---
-# M = Metal Grey (Pontoon)
-# D = Dark Wood/Brown (Inside the boat / passengers)
 BOAT_ART = [
     "  MM  ",
     " MMMM ",
@@ -43,8 +41,7 @@ BOAT_ART = [
 class MediterraneanJourney(arcade.Window):
     def __init__(self):
         super().__init__(WIDTH, HEIGHT, "Mediterranean Journey")
-        # Deep ocean blue background
-        arcade.set_background_color((15, 35, 75))
+        arcade.set_background_color((15, 35, 75)) # Deep ocean blue
         self.keys_held = set()
         self.reset()
 
@@ -86,20 +83,21 @@ class MediterraneanJourney(arcade.Window):
     def on_draw(self):
         self.clear()
 
-        # 0. Draw lanes (Now matched to the exact background color to hide them)
+        # 0. Draw background water lanes
         for x in LANES:
             arcade.draw_line(x, 0, x, HEIGHT, (15, 35, 75), 1)
 
-        # 1. Draw Currents
+        # 1. Draw Currents (Speed Lanes)
         for curr in self.currents:
             width = curr['size'] * LANE_WIDTH
             center_x = (curr['start_lane'] * LANE_WIDTH) + (width / 2)
+            # Drawn as light blue and slightly transparent
             arcade.draw_rect_filled(
                 arcade.XYWH(center_x, curr['y'], width, curr['height']),
-                (46, 204, 113, 80)
+                (135, 206, 250, 80)
             )
 
-        # 2. Draw Obstacles (Rocks/Debris)
+        # 2. Draw Obstacles
         for obs in self.obstacles:
             arcade.draw_rect_filled(
                 arcade.XYWH(obs[0], obs[1], LANE_WIDTH - 2, LANE_WIDTH - 2),
@@ -145,16 +143,14 @@ class MediterraneanJourney(arcade.Window):
             pontoon_color = arcade.color.SLATE_GRAY
             inside_color = arcade.color.BISTRE
 
-            # Status colors override the pontoon
             if self.in_current:
-                pontoon_color = arcade.color.LIME_GREEN
+                pontoon_color = arcade.color.LIGHT_SKY_BLUE
             if self.engine_failed:
                 pontoon_color = arcade.color.FIREBRICK
 
             start_x = self.player_x - 3
             start_y = PLAYER_Y + 7
 
-            # Loop through the custom array and draw 1x1 pixels
             for row_idx, row_str in enumerate(BOAT_ART):
                 for col_idx, char in enumerate(row_str):
                     if char == 'M':
@@ -175,8 +171,8 @@ class MediterraneanJourney(arcade.Window):
 
         if self.in_current and not self.engine_failed:
             multiplier = self.current_active_speed / FORWARD_SPEED
-            arcade.draw_text(f"IN CURRENT! x{multiplier:.1f} SPD", WIDTH - 15, HEIGHT - 35,
-                             arcade.color.LIME_GREEN, 16, anchor_x="right", bold=True)
+            arcade.draw_text(f"CURRENT CAUGHT! x{multiplier:.2f} SPD", WIDTH - 15, HEIGHT - 35,
+                             arcade.color.LIGHT_SKY_BLUE, 16, anchor_x="right", bold=True)
 
         # End States
         if self.rescued:
@@ -196,7 +192,7 @@ class MediterraneanJourney(arcade.Window):
         self.spawn_timer += 1
         self.day_timer += delta_time
 
-        # --- Check Win Condition (Arriving at Lampedusa) ---
+        # --- Check Win Condition ---
         if self.score >= 30000:
             self.rescued = True
             return
@@ -280,22 +276,27 @@ class MediterraneanJourney(arcade.Window):
                 self.player_lane += 1
                 self.player_target_x = LANES[self.player_lane]
 
-        # --- Geographical Stages Spawn Logic ---
+        # --- UPDATED GEOGRAPHICAL STAGES (Zones 1 to 5) ---
         if self.spawn_timer >= SPAWN_RATE:
 
-            in_libyan_coast = self.score < 5000
-            in_open_mediterranean = 5000 <= self.score < 15000
-            in_strait_of_sicily = 15000 <= self.score < 25000
-            in_lampedusa_approach = self.score >= 25000
+            in_zone_1 = self.score <= 1500
+            in_zone_2 = 1500 < self.score <= 5000
+            in_zone_3 = 5000 < self.score <= 10000
+            in_zone_4 = 10000 < self.score <= 25000
+            in_zone_5 = self.score > 25000
 
-            if in_open_mediterranean or in_strait_of_sicily:
+            # Currents trigger in Zone 3 and beyond
+            if not in_zone_1 and not in_zone_2:
                 if len(self.currents) == 0 and random.random() < 0.40:
                     roll = random.random()
                     if roll < 0.30: size = random.randint(1, 3)
                     elif roll < 0.70: size = random.randint(4, 7)
                     else: size = random.randint(8, 10)
 
-                    current_speed = 4.0 - (size * 0.15)
+                    # Speed boost is random between +0.2x and +0.5x
+                    speed_multiplier = 1.0 + random.uniform(0.2, 0.5)
+                    current_speed = FORWARD_SPEED * speed_multiplier
+
                     start_lane = random.randint(0, NUM_LANES - size)
                     self.currents.append({
                         'start_lane': start_lane,
@@ -305,16 +306,25 @@ class MediterraneanJourney(arcade.Window):
                         'height': CURRENT_HEIGHT
                     })
 
-            if in_libyan_coast:
-                num_clumps = random.randint(1, 3)
-                base_clump_size = (1, 3)
-            elif in_open_mediterranean:
-                num_clumps = random.randint(3, 5)
-                base_clump_size = (5, 10)
-            elif in_strait_of_sicily:
+            # Determine rock clustering by Zone
+            if in_zone_1:
+                num_clumps = 0
+                base_clump_size = (0, 0)
+            elif in_zone_2:
+                # Limit total rocks on screen to a maximum of 5
+                if len(self.obstacles) < 5:
+                    num_clumps = 1
+                    base_clump_size = (1, 2)
+                else:
+                    num_clumps = 0
+                    base_clump_size = (0, 0)
+            elif in_zone_3:
+                num_clumps = random.randint(2, 4)
+                base_clump_size = (3, 6)
+            elif in_zone_4:
                 num_clumps = random.randint(4, 7)
                 base_clump_size = (6, 12)
-            else:
+            else: # Zone 5
                 num_clumps = random.randint(6, 10)
                 base_clump_size = (8, 15)
 
