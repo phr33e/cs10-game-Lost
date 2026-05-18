@@ -165,9 +165,10 @@ class SimpleRunner100(arcade.Window):
             # 1. Spawn currents
             if len(self.currents) == 0 and random.random() < 0.40:
                 roll = random.random()
-                if roll < 0.10: size = random.randint(1, 5)
-                elif roll < 0.60: size = random.randint(6, 10)
-                else: size = random.randint(11, 20)
+                # --- UPDATED: Max size is now 10 ---
+                if roll < 0.30: size = random.randint(1, 3)     # 30% chance for small (1-3)
+                elif roll < 0.70: size = random.randint(4, 7)   # 40% chance for medium (4-7)
+                else: size = random.randint(8, 10)              # 30% chance for large (8-10)
 
                 current_speed = 13.4 - (size * 0.4)
                 start_lane = random.randint(0, NUM_LANES - size)
