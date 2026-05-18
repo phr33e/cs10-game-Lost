@@ -43,7 +43,7 @@ BOAT_ART = [
 class MediterraneanJourney(arcade.Window):
     def __init__(self):
         super().__init__(WIDTH, HEIGHT, "Mediterranean Journey")
-        # Fixed: Using a custom RGB color for deep ocean blue
+        # Deep ocean blue background
         arcade.set_background_color((15, 35, 75))
         self.keys_held = set()
         self.reset()
@@ -86,9 +86,9 @@ class MediterraneanJourney(arcade.Window):
     def on_draw(self):
         self.clear()
 
-        # 0. Draw faint lanes (Changed to faint white to look like water ripples)
+        # 0. Draw lanes (Now matched to the exact background color to hide them)
         for x in LANES:
-            arcade.draw_line(x, 0, x, HEIGHT, (255, 255, 255, 20), 1)
+            arcade.draw_line(x, 0, x, HEIGHT, (15, 35, 75), 1)
 
         # 1. Draw Currents
         for curr in self.currents:
