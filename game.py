@@ -104,20 +104,21 @@ class SimpleRunner100(arcade.Window):
                     border_width=band_thickness + 2
                 )
 
-        # 4. Draw Player (Drawn here so it sits under the dialogue box)
+        # 4. Draw Player (Now 2 blocks long vertically)
         if self.invulnerable_timer <= 0 or int(self.invulnerable_timer * 15) % 2 == 0:
             player_color = arcade.color.LIME_GREEN if self.in_current else arcade.color.CYAN
             arcade.draw_rect_filled(
-                arcade.XYWH(self.player_x, PLAYER_Y, LANE_WIDTH - 2, LANE_WIDTH - 2),
+                # Height is now (LANE_WIDTH * 2) - 2
+                arcade.XYWH(self.player_x, PLAYER_Y, LANE_WIDTH - 2, (LANE_WIDTH * 2) - 2),
                 player_color
             )
 
-        # 5. Low Energy Dialogue Box (Replaces Vignette)
+        # 5. Low Energy Dialogue Box (Smaller and Sleeker)
         if self.energy < 30 and not self.game_over:
-            box_width = 600
-            box_height = 120
+            box_width = 350
+            box_height = 70
             box_x = WIDTH / 2
-            box_y = 100  # Positioned near the bottom of the screen
+            box_y = 60  # Shifted lower to match the smaller size
 
             # Draw semi-transparent dark background
             arcade.draw_rect_filled(
@@ -128,16 +129,16 @@ class SimpleRunner100(arcade.Window):
             arcade.draw_rect_outline(
                 arcade.XYWH(box_x, box_y, box_width, box_height),
                 arcade.color.WHITE,
-                border_width=3
+                border_width=2
             )
 
-            # Draw the Speaker Name at the top of the box
-            arcade.draw_text("testperson", box_x - (box_width / 2) + 20, box_y + 25,
-                             arcade.color.GOLD, 18, bold=True)
+            # Draw the Speaker Name
+            arcade.draw_text("testperson", box_x - (box_width / 2) + 15, box_y + 15,
+                             arcade.color.GOLD, 14, bold=True)
 
-            # Draw the Dialogue Text inside
-            arcade.draw_text("I'm hungry...", box_x - (box_width / 2) + 40, box_y - 20,
-                             arcade.color.WHITE, 22, italic=True)
+            # Draw the Dialogue Text
+            arcade.draw_text("I'm hungry...", box_x - (box_width / 2) + 25, box_y - 15,
+                             arcade.color.WHITE, 16, italic=True)
 
         # 6. Draw UI
         arcade.draw_text(f"SCORE: {int(self.score)}", 15, HEIGHT - 35, arcade.color.WHITE, 16)
@@ -197,6 +198,7 @@ class SimpleRunner100(arcade.Window):
             zone_bottom = curr['y'] - curr['height'] / 2
             zone_top = curr['y'] + curr['height'] / 2
 
+            # Checking against the player's center Y position
             if zone_left <= self.player_x <= zone_right and zone_bottom <= PLAYER_Y <= zone_top:
                 self.in_current = True
                 target_speed = curr['speed']
@@ -273,10 +275,16 @@ class SimpleRunner100(arcade.Window):
 
             # --- Collision detection ---
             if self.invulnerable_timer <= 0:
-                if abs(self.player_x - obs[0]) < 8 and abs(obs[1] - PLAYER_Y) < 14:
+                # Collision logic updated to match the new taller 2-block hitbox
+                # Player width is 8 (+/- 4), Obstacle width is 8 (+/- 4) -> gap < 8
+                # Player height is 18 (+/- 9), Obstacle height is 8 (+/- 4) -> gap < 13
+                if abs(self.player_x - obs[0]) < 8 and abs(obs[1] - PLAYER_Y) < 13:
                     self.energy -= 70.0
 
-                    self.max_food_percentage *= 0.65
+                    # Randomize the max food capacity loss (between 15% and 45%)
+                    capacity_loss_percent = random.uniform(0.15, 0.45)
+                    self.max_food_percentage *= (1.0 - capacity_loss_percent)
+
                     if self.food_percentage > self.max_food_percentage:
                         self.food_percentage = self.max_food_percentage
 
