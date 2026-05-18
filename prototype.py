@@ -17,9 +17,9 @@ PLAYER_SIZE = LANE_WIDTH - 12
 LERP_SPEED = 0.2
 SLOW_LERP_SPEED = 0.12
 ENERGY_MAX = 100
-ENERGY_PER_FOOD = 40
-INITIAL_FOOD = 18
-AREA_ENERGY_BONUS = 15
+ENERGY_PER_FOOD = 35
+INITIAL_FOOD = 14
+AREA_ENERGY_BONUS = 8
 AREA_FOOD_BONUS = 1
 HORIZON_Y = 440
 NIGHT_START_TIME = 55.0
@@ -411,11 +411,11 @@ class RunnerGame(arcade.Window):
             if random.random() < 0.4:
                 self.spawn_tidal_wave()
 
-        pickup_chance = 0.12
+        pickup_chance = 0.08
         if self.area == 2:
-            pickup_chance = 0.22
+            pickup_chance = 0.14
         elif self.area >= 4:
-            pickup_chance = 0.16
+            pickup_chance = 0.1
 
         if random.random() < pickup_chance:
             self.spawn_food_pickup()
@@ -1149,7 +1149,7 @@ class RunnerGame(arcade.Window):
                 if isinstance(obstacle, CoastguardObstacle) and obstacle.spotted:
                     self.game_over_event()
                 else:
-                    self.energy -= 20
+                    self.energy -= 25
                     self.create_explosion(
                         self.player_sprite.center_x,
                         self.player_sprite.center_y,
