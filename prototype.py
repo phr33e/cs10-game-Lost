@@ -64,10 +64,10 @@ class Obstacle:
     def project_point(self, x, y):
         """Project world coordinates into the forward-looking view."""
         max_y = HEIGHT + 60
-        t = max(0.0, min(1.0, 1.0 - (y / max_y)))
-        depth_scale = 0.28 + 0.72 * t
+        travel = max(0.0, min(1.0, (y - PLAYER_Y) / max(1.0, max_y - PLAYER_Y)))
+        depth_scale = 0.28 + 0.72 * (1.0 - travel)
         projected_x = (WIDTH / 2) + ((x - (WIDTH / 2)) * depth_scale)
-        projected_y = HORIZON_Y + ((PLAYER_Y - HORIZON_Y) * t)
+        projected_y = PLAYER_Y + ((HORIZON_Y - PLAYER_Y) * (travel ** 1.25))
         return projected_x, projected_y, depth_scale
 
     def draw_with_glow(self):
@@ -331,7 +331,7 @@ class RunnerGame(arcade.Window):
                 "title": "LAMPEDUSA",
                 "journey": "The shore is close. Relief is mixed with uncertainty, because reaching land is only one part of the story.",
                 "explanation": "Arriving can mean safety, but it can also mean more waiting, more checks, and the emotional weight of everything left behind.",
-                "focus": "Hold on to the last of your Energy and bring the boat home.",
+                "focus": "Hold on to the last of your supplies and bring the boat home.",
                 "movement": "free",
                 "boat_speed": 130,
                 "speed_scale": 0.8,
@@ -1053,12 +1053,7 @@ class RunnerGame(arcade.Window):
 
     def project_player(self, x, y):
         """Project the player into the forward-looking view."""
-        max_y = HEIGHT + 60
-        t = max(0.0, min(1.0, 1.0 - (y / max_y)))
-        depth_scale = 0.28 + 0.72 * t
-        projected_x = (WIDTH / 2) + ((x - (WIDTH / 2)) * depth_scale)
-        projected_y = HORIZON_Y + ((PLAYER_Y - HORIZON_Y) * t)
-        return projected_x, projected_y, depth_scale
+        return x, y, 1.0
 
     def draw_energy_drain_overlay(self):
         """Darken the scene as stamina gets low."""
