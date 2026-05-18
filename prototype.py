@@ -270,7 +270,7 @@ class RunnerGame(arcade.Window):
 
         self.game_time = 0.0
         self.spawn_timer = 0.0
-        self.obstacle_speed = 7.0
+        self.obstacle_speed = BASE_OBSTACLE_SPEED
         self.area = 1
         self.area_timer = 0.0
         self.area_lengths = [1500, 1800, 2000, 2200, 2500, 2800]
@@ -315,7 +315,7 @@ class RunnerGame(arcade.Window):
                 "explanation": "People on the move can face surveillance, interception, and the fear of being spotted when they are already exhausted.",
                 "focus": "Move carefully. Avoid attention and protect the supplies you still have.",
                 "movement": "free",
-                "boat_speed": 170,
+                "boat_speed": 150,
                 "speed_scale": 0.9,
             },
             {
@@ -324,7 +324,7 @@ class RunnerGame(arcade.Window):
                 "explanation": "The last leg is where patience and rationing pay off. The journey becomes a test of discipline as much as survival.",
                 "focus": "Keep your line, use Food only when you truly need it, and do not panic.",
                 "movement": "free",
-                "boat_speed": 145,
+                "boat_speed": 130,
                 "speed_scale": 0.85,
             },
             {
@@ -333,7 +333,7 @@ class RunnerGame(arcade.Window):
                 "explanation": "Arriving can mean safety, but it can also mean more waiting, more checks, and the emotional weight of everything left behind.",
                 "focus": "Hold on to the last of your supplies and bring the boat home.",
                 "movement": "free",
-                "boat_speed": 130,
+                "boat_speed": 115,
                 "speed_scale": 0.8,
             },
         ]
@@ -371,7 +371,7 @@ class RunnerGame(arcade.Window):
         self.distance = 0
         self.game_time = 0.0
         self.spawn_timer = 0.0
-        self.obstacle_speed = 7.0
+        self.obstacle_speed = BASE_OBSTACLE_SPEED
         self.area = 1
         self.area_timer = 0.0
         self.difficulty_multiplier = 1.0
