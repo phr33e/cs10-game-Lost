@@ -761,6 +761,14 @@ class RunnerGame(arcade.Window):
         pickup = FoodPickup(x, HEIGHT + 50)
         self.food_pickups.append(pickup)
 
+    def recycle_obstacle(self, obstacle):
+        """Loop a rock-style obstacle back to the top so it keeps moving."""
+        obstacle.sprite.center_y = HEIGHT + 50
+        if isinstance(obstacle, CoastguardObstacle):
+            obstacle.spotted = False
+            obstacle.chase_timer = 0
+            obstacle.sprite.center_x = random.choice(LANES)
+
     def create_explosion(self, x, y):
         """Create particle explosion effect."""
         for _ in range(20):
@@ -1490,7 +1498,7 @@ class RunnerGame(arcade.Window):
                 obstacle.update(self.obstacle_speed)
 
             if obstacle.sprite.top < 0:
-                self.obstacle_list.remove(obstacle)
+                self.recycle_obstacle(obstacle)
 
         for pickup in self.food_pickups[:]:
             if arcade.check_for_collision(self.player_sprite, pickup.sprite):
