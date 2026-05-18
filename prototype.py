@@ -28,8 +28,8 @@ FREE_MOVE_SPEED = 160
 FREE_MOVE_SLOW_SPEED = 120
 PLAYER_MIN_Y = 55
 PLAYER_MAX_Y = 205
-ENERGY_DRAIN_MIN_SECONDS = 58.0
-ENERGY_DRAIN_MAX_SECONDS = 120.0
+ENERGY_DRAIN_MIN_SECONDS = 50.0
+ENERGY_DRAIN_MAX_SECONDS = 105.0
 BASE_OBSTACLE_SPEED = 5.4
 OBSTACLE_SPEED_RAMP = 0.18
 BASE_SPAWN_INTERVAL = 0.92
@@ -178,13 +178,13 @@ class CoastguardObstacle(Obstacle):
         distance = abs(player_x - self.sprite.center_x)
         if distance < self.visibility_range:
             self.spotted = True
-            self.chase_timer = 360
+            self.chase_timer = 480
 
     def update(self, obstacle_speed, player_x=None):
         if self.spotted and player_x is not None:
             direction = 1 if player_x > self.sprite.center_x else -1
-            self.sprite.center_x += direction * 4
-            self.sprite.center_y -= obstacle_speed * 0.65
+            self.sprite.center_x += direction * 5
+            self.sprite.center_y -= obstacle_speed * 0.8
             self.chase_timer -= 1
 
             if self.chase_timer <= 0:
@@ -677,7 +677,7 @@ class RunnerGame(arcade.Window):
 
     def spawn_basic_wave(self):
         """Spawn basic rocks."""
-        num_obstacles = random.randint(1, min(4, 1 + int(self.game_time // 14)))
+        num_obstacles = random.randint(1, min(4, 1 + int(self.game_time // 10)))
         lanes_to_use = random.sample(range(NUM_LANES), k=num_obstacles)
 
         for lane_idx in lanes_to_use:
@@ -728,7 +728,7 @@ class RunnerGame(arcade.Window):
         available_lanes = max(8, NUM_LANES - int(self.area_timer // 2))
         lane_offset = (NUM_LANES - available_lanes) // 2
 
-        num_obstacles = random.randint(4, 6)
+        num_obstacles = random.randint(5, 6)
         valid_lanes = list(range(lane_offset)) + list(
             range(NUM_LANES - lane_offset, NUM_LANES)
         )
@@ -748,7 +748,7 @@ class RunnerGame(arcade.Window):
 
     def spawn_coastguard_wave(self):
         """Spawn coastguard boats or regular obstacles."""
-        if random.random() < 0.5:
+        if random.random() < 0.58:
             x = random.choice(LANES)
             obstacle = CoastguardObstacle(x, HEIGHT + 50)
             self.obstacle_list.append(obstacle)
@@ -1444,7 +1444,7 @@ class RunnerGame(arcade.Window):
         if self.food_use_cooldown > 0:
             self.food_use_cooldown = max(0.0, self.food_use_cooldown - delta_time)
 
-        if self.area < len(self.area_descriptions) and self.area_timer > 34:
+        if self.area < len(self.area_descriptions) and self.area_timer > 38:
             self.area += 1
             self.area_timer = 0
             self.energy = min(ENERGY_MAX, self.energy + AREA_ENERGY_BONUS)
@@ -1470,7 +1470,7 @@ class RunnerGame(arcade.Window):
         elif self.area >= 4:
             self.obstacle_speed += 0.65
 
-        spawn_rate = max(MIN_SPAWN_INTERVAL, BASE_SPAWN_INTERVAL - (self.game_time * 0.007))
+        spawn_rate = max(MIN_SPAWN_INTERVAL, BASE_SPAWN_INTERVAL - (self.game_time * 0.008))
         self.spawn_timer += delta_time
         if self.spawn_timer >= spawn_rate:
             self.spawn_timer = 0.0
@@ -1506,7 +1506,7 @@ class RunnerGame(arcade.Window):
                 if isinstance(obstacle, CoastguardObstacle) and obstacle.spotted:
                     self.game_over_event()
                 else:
-                    self.energy -= 40
+                    self.energy -= 46
                     self.create_explosion(
                         self.player_sprite.center_x,
                         self.player_sprite.center_y,
@@ -1715,7 +1715,7 @@ class RunnerGame(arcade.Window):
             if key == arcade.key.SPACE and self.food > 0 and self.food_use_cooldown <= 0:
                 self.energy = min(ENERGY_MAX, self.energy + ENERGY_PER_FOOD)
                 self.food -= 1
-                self.food_use_cooldown = 0.65
+                self.food_use_cooldown = 1.0
 
     def on_key_release(self, key, modifiers):
         """Track held keys for free movement."""
