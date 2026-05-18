@@ -2,13 +2,13 @@ import arcade
 import random
 
 # Screen configuration
-NUM_LANES = 150        # Increased from 100
-LANE_WIDTH = 8         # Slightly thinner to fit on screen
-WIDTH = NUM_LANES * LANE_WIDTH  # 1200 pixels wide
-HEIGHT = 900           # Taller window for more front/back visibility
+NUM_LANES = 150
+LANE_WIDTH = 8
+WIDTH = NUM_LANES * LANE_WIDTH
+HEIGHT = 900
 
 # Player position
-PLAYER_Y = HEIGHT // 2  # Middle of the screen (now 450)
+PLAYER_Y = HEIGHT // 2
 
 # Speed settings
 SLIDE_SPEED = 0.25
@@ -20,10 +20,31 @@ CURRENT_HEIGHT = 32000
 
 LANES = [LANE_WIDTH // 2 + i * LANE_WIDTH for i in range(NUM_LANES)]
 
-class SimpleRunner100(arcade.Window):
+# --- Custom Pixel Art Boat ---
+# M = Metal Grey (Pontoon)
+# D = Dark Wood/Brown (Inside the boat / passengers)
+BOAT_ART = [
+    "  MM  ",
+    " MMMM ",
+    "MMDDMM",
+    "MDDDDM",
+    "MDDDDM",
+    "MDDDDM",
+    "MDDDDM",
+    "MDDDDM",
+    "MDDDDM",
+    "MDDDDM",
+    "MDDDDM",
+    "MDDDDM",
+    "MMDDMM",
+    " MMMM "
+]
+
+class MediterraneanJourney(arcade.Window):
     def __init__(self):
         super().__init__(WIDTH, HEIGHT, "Mediterranean Journey")
-        arcade.set_background_color(arcade.color.BLACK)
+        # Fixed: Using a custom RGB color for deep ocean blue
+        arcade.set_background_color((15, 35, 75))
         self.keys_held = set()
         self.reset()
 
@@ -40,7 +61,7 @@ class SimpleRunner100(arcade.Window):
         self.keys_held.clear()
 
         # --- Survival Mechanics ---
-        self.energy = 100.0                 # 1 point = 60 seconds
+        self.energy = 100.0
         self.max_food_percentage = 100.0
         self.food_percentage = 100.0
         self.energy_buffer = 0.0
@@ -65,9 +86,9 @@ class SimpleRunner100(arcade.Window):
     def on_draw(self):
         self.clear()
 
-        # 0. Draw faint lanes
+        # 0. Draw faint lanes (Changed to faint white to look like water ripples)
         for x in LANES:
-            arcade.draw_line(x, 0, x, HEIGHT, (25, 25, 25, 60), 1)
+            arcade.draw_line(x, 0, x, HEIGHT, (255, 255, 255, 20), 1)
 
         # 1. Draw Currents
         for curr in self.currents:
@@ -95,7 +116,6 @@ class SimpleRunner100(arcade.Window):
                 night_intensity = 2.0 - (time_in_cycle / self.night_transition_speed)
 
         if night_intensity > 0.01 and not self.game_over and not self.rescued:
-            # Expanded FOV math for the larger screen
             current_fov = 1500.0 - (1300.0 * night_intensity)
             num_bands = 15
             max_radius = 2000
@@ -111,7 +131,7 @@ class SimpleRunner100(arcade.Window):
                     border_width=band_thickness + 2
                 )
 
-        # 4. Low Energy Vignette (Under 15 energy = Under 15 mins left)
+        # 4. Low Energy Vignette
         if self.energy < 15 and not self.game_over and not self.rescued:
             darkness = 1.0 - (max(self.energy, 0) / 15.0)
             alpha = int(245 * darkness)
@@ -120,22 +140,32 @@ class SimpleRunner100(arcade.Window):
                 (0, 0, 0, alpha)
             )
 
-        # 5. Draw Player Boat
+        # 5. Draw Pixelated Player Boat
         if self.invulnerable_timer <= 0 or int(self.invulnerable_timer * 15) % 2 == 0:
-            player_color = arcade.color.LIME_GREEN if self.in_current else arcade.color.CYAN
-            # If the engine is failed, turn the boat a warning color
-            if self.engine_failed:
-                player_color = arcade.color.FIREBRICK
+            pontoon_color = arcade.color.SLATE_GRAY
+            inside_color = arcade.color.BISTRE
 
-            arcade.draw_rect_filled(
-                arcade.XYWH(self.player_x, PLAYER_Y, LANE_WIDTH - 2, (LANE_WIDTH * 2) - 2),
-                player_color
-            )
+            # Status colors override the pontoon
+            if self.in_current:
+                pontoon_color = arcade.color.LIME_GREEN
+            if self.engine_failed:
+                pontoon_color = arcade.color.FIREBRICK
+
+            start_x = self.player_x - 3
+            start_y = PLAYER_Y + 7
+
+            # Loop through the custom array and draw 1x1 pixels
+            for row_idx, row_str in enumerate(BOAT_ART):
+                for col_idx, char in enumerate(row_str):
+                    if char == 'M':
+                        arcade.draw_rect_filled(arcade.XYWH(start_x + col_idx, start_y - row_idx, 1, 1), pontoon_color)
+                    elif char == 'D':
+                        arcade.draw_rect_filled(arcade.XYWH(start_x + col_idx, start_y - row_idx, 1, 1), inside_color)
 
         # 6. Draw UI
         arcade.draw_text(f"FOOD: {self.food_percentage:.1f}% / {self.max_food_percentage:.1f}%",
                          15, HEIGHT - 35, arcade.color.ORANGE, 16, bold=True)
-        arcade.draw_text("Press SPACE to eat", 15, HEIGHT - 55, arcade.color.GRAY, 12)
+        arcade.draw_text("Press SPACE to eat", 15, HEIGHT - 55, arcade.color.WHITE, 12)
 
         if self.energy_buffer > 0:
             arcade.draw_text("REPLENISHING...", 15, HEIGHT - 75, arcade.color.YELLOW, 12, bold=True)
@@ -311,9 +341,7 @@ class SimpleRunner100(arcade.Window):
         for obs in self.obstacles[:]:
             obs[1] -= self.current_active_speed
 
-            # --- Updated Collision detection for thinner hitboxes ---
             if self.invulnerable_timer <= 0:
-                # Player width gap is now 6, height gap is 10
                 if abs(self.player_x - obs[0]) < 6 and abs(obs[1] - PLAYER_Y) < 10:
                     self.energy -= 70.0
 
@@ -363,5 +391,5 @@ class SimpleRunner100(arcade.Window):
 
 
 if __name__ == "__main__":
-    SimpleRunner100()
+    MediterraneanJourney()
     arcade.run()
