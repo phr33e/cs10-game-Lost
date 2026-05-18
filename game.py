@@ -80,52 +80,64 @@ class SimpleRunner100(arcade.Window):
         # 3. Day/Night Cycle (Encroaching Gradient FOV)
         night_intensity = 0.0
         if self.day_timer > self.morning_duration:
-            # Calculate how far into the night cycle we are
             time_in_cycle = (self.day_timer - self.morning_duration) % (self.night_transition_speed * 2)
             if time_in_cycle < self.night_transition_speed:
                 night_intensity = time_in_cycle / self.night_transition_speed
             else:
-                # Slowly transition back to day
                 night_intensity = 2.0 - (time_in_cycle / self.night_transition_speed)
 
         if night_intensity > 0.01 and not self.game_over:
-            # Max FOV is 1200 (off screen). Minimum FOV is 100 (always see adjacent lanes).
             current_fov = 1200.0 - (1100.0 * night_intensity)
 
-            # Draw gradient bands so darkness creeps in from the edges
             num_bands = 15
             max_radius = 1500
             band_thickness = (max_radius - current_fov) / num_bands
 
             for i in range(num_bands):
                 r = current_fov + (i * band_thickness)
-                # Alpha interpolates so the inner edge is completely soft
                 band_alpha = int((255 * night_intensity) * ((i + 1) / num_bands))
 
                 arcade.draw_circle_outline(
                     self.player_x, PLAYER_Y,
                     radius=r + (band_thickness / 2),
                     color=(0, 0, 0, band_alpha),
-                    border_width=band_thickness + 2 # +2 prevents pixel gaps between bands
+                    border_width=band_thickness + 2
                 )
 
-        # 4. Low Energy Vignette Effect
-        if self.energy < 30 and not self.game_over:
-            darkness = 1.0 - (max(self.energy, 0) / 30.0)
-            # Capped at 200 so you never go completely blind just from low energy
-            alpha = int(200 * darkness)
-            arcade.draw_rect_filled(
-                arcade.XYWH(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT),
-                (0, 0, 0, alpha)
-            )
-
-        # 5. Draw Player (Drawn LAST so they are always visible)
+        # 4. Draw Player (Drawn here so it sits under the dialogue box)
         if self.invulnerable_timer <= 0 or int(self.invulnerable_timer * 15) % 2 == 0:
             player_color = arcade.color.LIME_GREEN if self.in_current else arcade.color.CYAN
             arcade.draw_rect_filled(
                 arcade.XYWH(self.player_x, PLAYER_Y, LANE_WIDTH - 2, LANE_WIDTH - 2),
                 player_color
             )
+
+        # 5. Low Energy Dialogue Box (Replaces Vignette)
+        if self.energy < 30 and not self.game_over:
+            box_width = 600
+            box_height = 120
+            box_x = WIDTH / 2
+            box_y = 100  # Positioned near the bottom of the screen
+
+            # Draw semi-transparent dark background
+            arcade.draw_rect_filled(
+                arcade.XYWH(box_x, box_y, box_width, box_height),
+                (0, 0, 0, 220)
+            )
+            # Draw white border
+            arcade.draw_rect_outline(
+                arcade.XYWH(box_x, box_y, box_width, box_height),
+                arcade.color.WHITE,
+                border_width=3
+            )
+
+            # Draw the Speaker Name at the top of the box
+            arcade.draw_text("testperson", box_x - (box_width / 2) + 20, box_y + 25,
+                             arcade.color.GOLD, 18, bold=True)
+
+            # Draw the Dialogue Text inside
+            arcade.draw_text("I'm hungry...", box_x - (box_width / 2) + 40, box_y - 20,
+                             arcade.color.WHITE, 22, italic=True)
 
         # 6. Draw UI
         arcade.draw_text(f"SCORE: {int(self.score)}", 15, HEIGHT - 35, arcade.color.WHITE, 16)
