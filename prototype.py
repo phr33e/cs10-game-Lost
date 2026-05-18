@@ -253,9 +253,12 @@ class RunnerGame(arcade.Window):
         self.particles = arcade.SpriteList()
         self.keys_down = set()
         self.dialogue_open = False
-        self.dialogue_entry_index = 0
+        self.dialogue_mode = None
+        self.manual_dialogue_index = 0
+        self.auto_dialogue_index = 0
         self.dialogue_line_index = 0
         self.dialogue_cooldown = 0.0
+        self.dialogue_line_timer = 0.0
         self.active_dialogue = None
 
         self.player_lane = NUM_LANES // 2
@@ -344,108 +347,120 @@ class RunnerGame(arcade.Window):
             },
         ]
         self.migrant_dialogues = [
-            [
-                {
+            {
+                "manual": {
                     "speaker": "Amina",
+                    "trigger_distance": 90,
                     "lines": [
                         "We left because staying meant waiting for violence to come back.",
                         "I carried only my documents and a photo of my children.",
                         "I keep telling myself this boat is the price of a safer morning.",
                     ],
                 },
-                {
+                "auto": {
                     "speaker": "Youssef",
+                    "trigger_distance": 240,
                     "lines": [
                         "The journey starts long before the sea. It starts when there is no work, no safety, and no way forward at home.",
                         "We crossed borders on foot before we ever saw water.",
                     ],
                 },
-            ],
-            [
-                {
+            },
+            {
+                "manual": {
                     "speaker": "Nadia",
+                    "trigger_distance": 100,
                     "lines": [
                         "The sea makes every hour feel heavier.",
                         "We drink slowly because every sip matters and nobody knows how long this will last.",
                         "People get quiet when the waves rise, not because we do not care, but because we are trying to stay calm.",
                     ],
                 },
-                {
+                "auto": {
                     "speaker": "Salim",
+                    "trigger_distance": 230,
                     "lines": [
                         "Some of us are sick, some are praying, and some are just staring at the horizon.",
                         "It is strange how far hope can carry you when fear is still with you.",
                     ],
                 },
-            ],
-            [
-                {
+            },
+            {
+                "manual": {
                     "speaker": "Mariam",
+                    "trigger_distance": 90,
                     "lines": [
                         "The route changes because the safest path is never really safe.",
                         "People pay what they have to strangers who promise a crossing and leave us with uncertainty instead.",
                         "One crowded boat can turn a desperate plan into a disaster in minutes.",
                     ],
                 },
-                {
+                "auto": {
                     "speaker": "Ibrahim",
+                    "trigger_distance": 220,
                     "lines": [
                         "We are not choosing danger because we want adventure.",
                         "We are choosing it because the alternatives were worse than the sea.",
                     ],
                 },
-            ],
-            [
-                {
+            },
+            {
+                "manual": {
                     "speaker": "Leila",
+                    "trigger_distance": 80,
                     "lines": [
                         "When lights appear, everyone freezes.",
                         "Being seen can mean being intercepted, turned back, or losing the chance we fought for.",
                         "Even silence feels loud when you know someone is watching.",
                     ],
                 },
-                {
+                "auto": {
                     "speaker": "Farid",
+                    "trigger_distance": 210,
                     "lines": [
                         "We are tired of hiding, but we learned very quickly that fear can follow you out here too.",
                         "All we want is a place where our names do not have to be whispered.",
                     ],
                 },
-            ],
-            [
-                {
+            },
+            {
+                "manual": {
                     "speaker": "Amina",
+                    "trigger_distance": 80,
                     "lines": [
                         "The hardest part is that land can be close and still feel far away.",
                         "Everybody on this boat is thinking about different things: family, papers, food, and whether tomorrow is finally going to be different.",
                         "We have been holding ourselves together for so long that even relief feels complicated.",
                     ],
                 },
-                {
+                "auto": {
                     "speaker": "Youssef",
+                    "trigger_distance": 200,
                     "lines": [
                         "We are counting every minute now.",
                         "Not because the journey is over, but because it has changed us and we need to believe the next part can be gentler.",
                     ],
                 },
-            ],
-            [
-                {
+            },
+            {
+                "manual": {
                     "speaker": "Nadia",
+                    "trigger_distance": 70,
                     "lines": [
                         "Reaching shore does not erase what happened on the way here.",
                         "Some of us will ask for asylum, some will call family, and some will just stand still because the body needs time to understand safety again.",
                         "The sea stays inside you for a while.",
                     ],
                 },
-                {
+                "auto": {
                     "speaker": "Salim",
+                    "trigger_distance": 190,
                     "lines": [
                         "We made it this far by carrying one another.",
                         "That is the story I want people to remember: not only the crossing, but the reason we kept going.",
                     ],
                 },
-            ],
+            },
         ]
 
         self.setup()
@@ -486,9 +501,12 @@ class RunnerGame(arcade.Window):
         self.area_timer = 0.0
         self.difficulty_multiplier = 1.0
         self.dialogue_open = False
-        self.dialogue_entry_index = 0
+        self.dialogue_mode = None
+        self.manual_dialogue_index = 0
+        self.auto_dialogue_index = 0
         self.dialogue_line_index = 0
         self.dialogue_cooldown = 0.0
+        self.dialogue_line_timer = 0.0
         self.active_dialogue = None
 
     def refresh_control_mode(self):
@@ -768,7 +786,7 @@ class RunnerGame(arcade.Window):
             font_size=10,
             anchor_x="center",
         )
-        if not self.dialogue_open and self.dialogue_entry_index < len(self.current_dialogue_group()):
+        if self.manual_dialogue_available() and not self.dialogue_open:
             dialogue_hint = "Press T to talk to the passengers"
             arcade.draw_text(
                 dialogue_hint,
@@ -1011,32 +1029,37 @@ class RunnerGame(arcade.Window):
         if not self.dialogue_open and self.active_dialogue is None:
             return
 
+        is_auto = self.dialogue_mode == "auto"
         panel_left = 40
         panel_right = WIDTH - 40
         panel_bottom = 40
-        panel_top = 165
+        panel_top = 165 if not is_auto else 145
+        panel_color = (10, 18, 30, 220) if not is_auto else (38, 24, 10, 210)
+        panel_outline = (132, 202, 255) if not is_auto else (255, 196, 120)
 
         arcade.draw_rect_filled(
             arcade.LRBT(left=panel_left, right=panel_right, bottom=panel_bottom, top=panel_top),
-            color=(10, 18, 30, 220),
+            color=panel_color,
         )
         arcade.draw_rect_outline(
             arcade.LRBT(left=panel_left, right=panel_right, bottom=panel_bottom, top=panel_top),
-            color=(132, 202, 255),
+            color=panel_outline,
             border_width=2,
         )
 
         if self.active_dialogue is None:
+            label = "Passengers start talking over the engine" if is_auto else "A passenger leans toward you"
+            footer = "While you steer" if is_auto else "Press T to listen"
             arcade.draw_text(
-                "A passenger leans toward you.",
+                label,
                 panel_left + 18,
                 panel_top - 32,
-                color=arcade.color.LIGHT_CYAN,
+                color=arcade.color.LIGHT_YELLOW if is_auto else arcade.color.LIGHT_CYAN,
                 font_size=13,
                 bold=True,
             )
             arcade.draw_text(
-                "Press T to listen",
+                footer,
                 panel_left + 18,
                 panel_bottom + 18,
                 color=arcade.color.WHITE,
@@ -1065,7 +1088,9 @@ class RunnerGame(arcade.Window):
             multiline=True,
         )
 
-        if self.dialogue_line_index < len(self.active_dialogue["lines"]) - 1:
+        if is_auto:
+            footer = "They keep talking as you drive"
+        elif self.dialogue_line_index < len(self.active_dialogue["lines"]) - 1:
             footer = "Press T to continue"
         else:
             footer = "Press T to let them speak again later"
@@ -1279,10 +1304,11 @@ class RunnerGame(arcade.Window):
         elif self.state == STATE_PLAYING:
             if self.dialogue_cooldown > 0:
                 self.dialogue_cooldown = max(0.0, self.dialogue_cooldown - delta_time)
-            if self.dialogue_open:
+            if self.dialogue_mode == "manual":
                 self.update_particles()
                 return
             self.update_game(delta_time)
+            self.update_auto_dialogue(delta_time)
         elif self.state == STATE_GAME_OVER:
             self.update_particles()
 
@@ -1299,11 +1325,7 @@ class RunnerGame(arcade.Window):
             self.energy = min(ENERGY_MAX, self.energy + AREA_ENERGY_BONUS)
             self.food += AREA_FOOD_BONUS
             self.refresh_control_mode()
-            self.dialogue_open = False
-            self.dialogue_entry_index = 0
-            self.dialogue_line_index = 0
-            self.dialogue_cooldown = 0.0
-            self.active_dialogue = None
+            self.reset_dialogue_state()
             self.state = STATE_AREA_TRANSITION
             return
 
@@ -1368,29 +1390,74 @@ class RunnerGame(arcade.Window):
 
         if self.energy <= 0:
             self.game_over_event()
+            return
 
-    def current_dialogue_group(self):
-        """Return the dialogue group for the current area."""
+        self.update_dialogue_triggers()
+
+    def current_dialogue_stage(self):
+        """Return the dialogue set for the current area."""
         stage_index = min(self.area - 1, len(self.migrant_dialogues) - 1)
         return self.migrant_dialogues[stage_index]
 
-    def open_dialogue(self):
-        """Open the next passenger dialogue if one is available."""
-        if self.dialogue_cooldown > 0 or self.dialogue_open:
+    def stage_progress_distance(self):
+        """Return how far the player is into the current area."""
+        return self.area_timer * 32
+
+    def reset_dialogue_state(self):
+        """Clear all dialogue state when a stage changes."""
+        self.dialogue_open = False
+        self.dialogue_mode = None
+        self.manual_dialogue_index = 0
+        self.auto_dialogue_index = 0
+        self.dialogue_line_index = 0
+        self.dialogue_cooldown = 0.0
+        self.dialogue_line_timer = 0.0
+        self.active_dialogue = None
+
+    def manual_dialogue_available(self):
+        """Return True when a player-initiated talk point is ready."""
+        if self.dialogue_open:
+            return False
+        stage = self.current_dialogue_stage()
+        if self.manual_dialogue_index >= 1:
+            return False
+        return self.stage_progress_distance() >= stage["manual"]["trigger_distance"]
+
+    def update_dialogue_triggers(self):
+        """Start manual or auto conversations when their trigger points are reached."""
+        if self.dialogue_open or self.dialogue_cooldown > 0:
             return
 
-        group = self.current_dialogue_group()
-        if self.dialogue_entry_index >= len(group):
+        stage = self.current_dialogue_stage()
+        progress = self.stage_progress_distance()
+
+        if self.auto_dialogue_index < 1 and progress >= stage["auto"]["trigger_distance"]:
+            self.start_dialogue(stage["auto"], mode="auto")
+            self.auto_dialogue_index = 1
             return
 
-        self.active_dialogue = group[self.dialogue_entry_index]
+        if self.manual_dialogue_index < 1 and progress >= stage["manual"]["trigger_distance"]:
+            # Leave the actual opening to the player's T press.
+            return
+
+    def start_dialogue(self, dialogue, mode):
+        """Begin a dialogue in either manual or auto mode."""
+        self.active_dialogue = dialogue
         self.dialogue_line_index = 0
         self.dialogue_open = True
+        self.dialogue_mode = mode
+        self.dialogue_line_timer = 0.0
 
     def advance_dialogue(self):
         """Advance or close the active passenger dialogue."""
         if self.active_dialogue is None:
-            self.open_dialogue()
+            stage = self.current_dialogue_stage()
+            if self.manual_dialogue_index >= 1 or self.stage_progress_distance() < stage["manual"]["trigger_distance"]:
+                return
+            self.start_dialogue(stage["manual"], mode="manual")
+            return
+
+        if self.dialogue_mode == "auto":
             return
 
         if self.dialogue_line_index < len(self.active_dialogue["lines"]) - 1:
@@ -1399,9 +1466,32 @@ class RunnerGame(arcade.Window):
 
         self.dialogue_open = False
         self.dialogue_cooldown = 1.25
-        self.dialogue_entry_index += 1
+        self.manual_dialogue_index = 1
         self.active_dialogue = None
         self.dialogue_line_index = 0
+        self.dialogue_mode = None
+        self.dialogue_line_timer = 0.0
+
+    def update_auto_dialogue(self, delta_time):
+        """Advance auto dialogue lines while the boat is still moving."""
+        if self.dialogue_mode != "auto" or self.active_dialogue is None:
+            return
+
+        self.dialogue_line_timer += delta_time
+        if self.dialogue_line_timer < 2.4:
+            return
+
+        self.dialogue_line_timer = 0.0
+        if self.dialogue_line_index < len(self.active_dialogue["lines"]) - 1:
+            self.dialogue_line_index += 1
+            return
+
+        self.dialogue_open = False
+        self.dialogue_cooldown = 1.0
+        self.auto_dialogue_index = 1
+        self.active_dialogue = None
+        self.dialogue_line_index = 0
+        self.dialogue_mode = None
 
     def update_free_movement(self, delta_time):
         """Move the boat freely in the later stages."""
@@ -1461,7 +1551,10 @@ class RunnerGame(arcade.Window):
         elif self.state == STATE_AREA_TRANSITION:
             if key == arcade.key.SPACE:
                 self.state = STATE_PLAYING
-                self.open_dialogue()
+                self.manual_dialogue_index = 0
+                self.auto_dialogue_index = 0
+                self.dialogue_cooldown = 0.0
+                self.active_dialogue = None
 
         elif self.state == STATE_PLAYING:
             if key == MIGRANT_DIALOGUE_KEY:
