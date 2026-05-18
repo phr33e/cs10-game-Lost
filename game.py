@@ -7,6 +7,9 @@ LANE_WIDTH = 10
 WIDTH = NUM_LANES * LANE_WIDTH  # 1000 pixels wide
 HEIGHT = 600
 
+# Player position
+PLAYER_Y = HEIGHT // 2  # Middle of the screen
+
 # Speed settings
 SLIDE_SPEED = 0.8
 FORWARD_SPEED = 3.5
@@ -66,47 +69,44 @@ class SimpleRunner100(arcade.Window):
                 (46, 204, 113, 80)
             )
 
-        # 2. Draw Player
-        if self.invulnerable_timer <= 0 or int(self.invulnerable_timer * 15) % 2 == 0:
-            player_color = arcade.color.LIME_GREEN if self.in_current else arcade.color.CYAN
-            arcade.draw_rect_filled(
-                arcade.XYWH(self.player_x, 80, LANE_WIDTH - 2, LANE_WIDTH - 2),
-                player_color
-            )
-
-        # 3. Draw Obstacles
+        # 2. Draw Obstacles (Rocks)
         for obs in self.obstacles:
             arcade.draw_rect_filled(
                 arcade.XYWH(obs[0], obs[1], LANE_WIDTH - 2, LANE_WIDTH - 2),
                 arcade.color.DARK_GRAY
             )
 
-        # 4. Day/Night Cycle (FOV Reducer)
-        # Calculate where we are in the cycle (0.0 is Day, 1.0 is Peak Night)
+        # 3. Day/Night Cycle (FOV Reducer)
         cycle_progress = (self.day_timer % self.day_length) / (self.day_length / 2)
         night_intensity = cycle_progress if cycle_progress <= 1.0 else 2.0 - cycle_progress
 
         if night_intensity > 0.01 and not self.game_over:
-            # 1000 radius covers the screen. At peak night, drops down to exactly 10.
             current_fov = 1000.0 - (990.0 * night_intensity)
             alpha = int(255 * night_intensity)
 
-            # Draw a massive shape with a hole in the middle for the FOV
             border_thickness = 4000
             arcade.draw_circle_outline(
-                self.player_x, 80,
+                self.player_x, PLAYER_Y,
                 radius=current_fov + (border_thickness / 2),
                 color=(0, 0, 0, alpha),
                 border_width=border_thickness
             )
 
-        # 5. Low Energy Vignette Effect (Stacks under the FOV)
+        # 4. Low Energy Vignette Effect
         if self.energy < 30 and not self.game_over:
             darkness = 1.0 - (max(self.energy, 0) / 30.0)
             alpha = int(245 * darkness)
             arcade.draw_rect_filled(
                 arcade.XYWH(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT),
                 (0, 0, 0, alpha)
+            )
+
+        # 5. Draw Player (Drawn LAST so they are always visible on top of the darkness)
+        if self.invulnerable_timer <= 0 or int(self.invulnerable_timer * 15) % 2 == 0:
+            player_color = arcade.color.LIME_GREEN if self.in_current else arcade.color.CYAN
+            arcade.draw_rect_filled(
+                arcade.XYWH(self.player_x, PLAYER_Y, LANE_WIDTH - 2, LANE_WIDTH - 2),
+                player_color
             )
 
         # 6. Draw UI
@@ -116,7 +116,6 @@ class SimpleRunner100(arcade.Window):
                          15, HEIGHT - 60, arcade.color.ORANGE, 16, bold=True)
         arcade.draw_text("Press SPACE to eat", 15, HEIGHT - 80, arcade.color.GRAY, 12)
 
-        # Show if we are currently digesting food into energy
         if self.energy_buffer > 0:
             arcade.draw_text("REPLENISHING...", 15, HEIGHT - 100, arcade.color.YELLOW, 12, bold=True)
 
@@ -137,21 +136,20 @@ class SimpleRunner100(arcade.Window):
         self.spawn_timer += 1
         self.day_timer += delta_time
 
-        # --- Energy Buffer Healing (Over time) ---
+        # --- Energy Buffer Healing ---
         if self.energy_buffer > 0:
             heal_step = self.healing_rate * delta_time
             if heal_step > self.energy_buffer:
-                heal_step = self.energy_buffer # Don't over-heal past what's in the buffer
+                heal_step = self.energy_buffer
 
             self.energy_buffer -= heal_step
             self.energy += heal_step
 
-            # Cap energy at 100 and wipe remainder
             if self.energy > 100.0:
                 self.energy = 100.0
                 self.energy_buffer = 0.0
 
-        # --- Base Energy Depletion (100 energy over 180 seconds) ---
+        # --- Base Energy Depletion ---
         self.energy -= (100.0 / 180.0) * delta_time
         if self.energy <= 0:
             self.game_over = True
@@ -169,12 +167,12 @@ class SimpleRunner100(arcade.Window):
             zone_bottom = curr['y'] - curr['height'] / 2
             zone_top = curr['y'] + curr['height'] / 2
 
-            if zone_left <= self.player_x <= zone_right and zone_bottom <= 80 <= zone_top:
+            if zone_left <= self.player_x <= zone_right and zone_bottom <= PLAYER_Y <= zone_top:
                 self.in_current = True
                 target_speed = curr['speed']
                 break
 
-        # --- Fade Speed In/Out smoothly ---
+        # --- Fade Speed ---
         if self.current_active_speed < target_speed:
             self.current_active_speed += 0.15
             if self.current_active_speed > target_speed:
@@ -184,16 +182,13 @@ class SimpleRunner100(arcade.Window):
             if self.current_active_speed < target_speed:
                 self.current_active_speed = target_speed
 
-        # Adjust score gain
         self.score += (self.current_active_speed / FORWARD_SPEED)
 
-        # Move player sideways smoothly
         if self.player_x < self.player_target_x:
             self.player_x = min(self.player_target_x, self.player_x + SLIDE_SPEED)
         elif self.player_x > self.player_target_x:
             self.player_x = max(self.player_target_x, self.player_x - SLIDE_SPEED)
 
-        # Continuous movement check for holding keys
         if self.player_x == self.player_target_x:
             if (arcade.key.LEFT in self.keys_held or arcade.key.A in self.keys_held) and self.player_lane > 0:
                 self.player_lane -= 1
@@ -248,7 +243,8 @@ class SimpleRunner100(arcade.Window):
 
             # --- Collision detection ---
             if self.invulnerable_timer <= 0:
-                if abs(self.player_x - obs[0]) < 8 and abs(obs[1] - 80) < 14:
+                # Updated collision to match the new PLAYER_Y
+                if abs(self.player_x - obs[0]) < 8 and abs(obs[1] - PLAYER_Y) < 14:
                     self.energy -= 70.0
 
                     self.max_food_percentage *= 0.65
@@ -259,7 +255,6 @@ class SimpleRunner100(arcade.Window):
                     self.obstacles.remove(obs)
                     continue
 
-            # Remove off-screen obstacles
             if obs[1] < -20:
                 self.obstacles.remove(obs)
 
@@ -280,20 +275,13 @@ class SimpleRunner100(arcade.Window):
                 self.player_lane += 1
                 self.player_target_x = LANES[self.player_lane]
 
-        # --- Use Food Mechanic ---
         if key == arcade.key.SPACE:
             if self.food_percentage > 0 and self.energy < 100:
-                # Take a random bite size (between 5% and 25%)
                 food_to_eat = random.uniform(5.0, 25.0)
-
-                # Make sure we don't eat more than we actually have left
                 if food_to_eat > self.food_percentage:
                     food_to_eat = self.food_percentage
 
                 self.food_percentage -= food_to_eat
-
-                # Add it to the buffer to be converted to energy over time
-                # 1% food eaten = 1 energy to heal
                 self.energy_buffer += food_to_eat
 
     def on_key_release(self, key, modifiers):
