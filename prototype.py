@@ -16,7 +16,6 @@ PLAYER_Y = 80
 PLAYER_SIZE = LANE_WIDTH - 12
 LERP_SPEED = 0.2
 SLOW_LERP_SPEED = 0.12
-ENERGY_DRAIN_RATE = 4.5
 ENERGY_MAX = 100
 ENERGY_PER_FOOD = 40
 INITIAL_FOOD = 18
@@ -25,11 +24,18 @@ AREA_FOOD_BONUS = 1
 HORIZON_Y = 440
 NIGHT_START_TIME = 55.0
 NIGHT_FULL_TIME = 80.0
-ENERGY_PICKUP_AMOUNT = 25
 FREE_MOVE_SPEED = 180
 FREE_MOVE_SLOW_SPEED = 135
 PLAYER_MIN_Y = 55
 PLAYER_MAX_Y = 205
+ENERGY_DRAIN_MIN_SECONDS = 90.0
+ENERGY_DRAIN_MAX_SECONDS = 180.0
+BASE_OBSTACLE_SPEED = 4.2
+OBSTACLE_SPEED_RAMP = 0.11
+BASE_SPAWN_INTERVAL = 1.25
+MIN_SPAWN_INTERVAL = 0.85
+LOW_ENERGY_THRESHOLD = 0.35
+LOW_ENERGY_FULL_DARK = 0.08
 
 # Game states
 STATE_INTRO = "intro"
@@ -55,28 +61,53 @@ class Obstacle:
         speed = self.speed if self.speed is not None else obstacle_speed
         self.sprite.center_y -= speed
 
+    def project_point(self, x, y):
+        """Project world coordinates into the forward-looking view."""
+        max_y = HEIGHT + 60
+        t = max(0.0, min(1.0, 1.0 - (y / max_y)))
+        depth_scale = 0.28 + 0.72 * t
+        projected_x = (WIDTH / 2) + ((x - (WIDTH / 2)) * depth_scale)
+        projected_y = HORIZON_Y + ((PLAYER_Y - HORIZON_Y) * t)
+        return projected_x, projected_y, depth_scale
+
     def draw_with_glow(self):
+        screen_x, screen_y, scale = self.project_point(self.sprite.center_x, self.sprite.center_y)
+        screen_width = max(10, self.sprite.width * scale)
+        screen_height = max(10, self.sprite.height * scale)
         arcade.draw_rect_filled(
             arcade.LRBT(
-                left=self.sprite.left - 4,
-                right=self.sprite.right + 4,
-                bottom=self.sprite.bottom - 4,
-                top=self.sprite.top + 4,
+                left=screen_x - screen_width * 0.6,
+                right=screen_x + screen_width * 0.6,
+                bottom=screen_y - screen_height * 0.6,
+                top=screen_y + screen_height * 0.6,
             ),
             color=(*self.color[:3], 80),
         )
         if self.render_mode == "rock":
-            self.draw_rock()
+            self.draw_rock(screen_x, screen_y, screen_width, screen_height)
         else:
-            arcade.draw_sprite(self.sprite)
+            arcade.draw_rect_filled(
+                arcade.LRBT(
+                    left=screen_x - screen_width * 0.35,
+                    right=screen_x + screen_width * 0.35,
+                    bottom=screen_y - screen_height * 0.55,
+                    top=screen_y + screen_height * 0.55,
+                ),
+                color=self.color,
+            )
+            arcade.draw_rect_outline(
+                arcade.LRBT(
+                    left=screen_x - screen_width * 0.35,
+                    right=screen_x + screen_width * 0.35,
+                    bottom=screen_y - screen_height * 0.55,
+                    top=screen_y + screen_height * 0.55,
+                ),
+                color=(255, 255, 255, 75),
+                border_width=1,
+            )
 
-    def draw_rock(self):
+    def draw_rock(self, x, y, width, height):
         """Draw a rounded rock-like obstacle."""
-        x = self.sprite.center_x
-        y = self.sprite.center_y
-        width = self.sprite.width
-        height = self.sprite.height
-
         base_color = self.color
         shadow_color = (
             max(0, base_color[0] - 35),
@@ -90,13 +121,13 @@ class Obstacle:
         )
 
         rock_points = [
-            (x - width * 0.45, y - height * 0.2),
-            (x - width * 0.3, y + height * 0.35),
-            (x, y + height * 0.5),
-            (x + width * 0.35, y + height * 0.25),
-            (x + width * 0.45, y - height * 0.1),
-            (x + width * 0.1, y - height * 0.5),
-            (x - width * 0.25, y - height * 0.45),
+            (x - width * 0.25, y - height * 0.15),
+            (x - width * 0.14, y + height * 0.38),
+            (x, y + height * 0.52),
+            (x + width * 0.2, y + height * 0.26),
+            (x + width * 0.26, y - height * 0.08),
+            (x + width * 0.06, y - height * 0.5),
+            (x - width * 0.12, y - height * 0.42),
         ]
 
         arcade.draw_ellipse_filled(x, y - 3, width * 1.05, height * 0.95, shadow_color)
@@ -161,11 +192,11 @@ class CoastguardObstacle(Obstacle):
             self.sprite.center_y -= obstacle_speed
 
 
-class EnergyPickup:
-    """Collectible that restores energy without using food."""
+class FoodPickup:
+    """Collectible food supply."""
 
     def __init__(self, x, y):
-        self.sprite = arcade.SpriteSolidColor(width=22, height=22, color=(255, 236, 120))
+        self.sprite = arcade.SpriteSolidColor(width=22, height=22, color=(198, 126, 62))
         self.sprite.center_x = x
         self.sprite.center_y = y
         self.pulse = random.uniform(0, math.pi * 2)
@@ -175,35 +206,37 @@ class EnergyPickup:
         self.pulse += 0.12
 
     def draw_with_glow(self):
-        glow_alpha = int(85 + 25 * (0.5 + 0.5 * math.sin(self.pulse)))
+        glow_alpha = int(60 + 20 * (0.5 + 0.5 * math.sin(self.pulse)))
         arcade.draw_circle_filled(
             self.sprite.center_x,
             self.sprite.center_y,
             18,
-            (255, 240, 140, glow_alpha),
+            (255, 190, 120, glow_alpha),
         )
         arcade.draw_circle_filled(
             self.sprite.center_x,
             self.sprite.center_y,
             12,
-            (255, 245, 200, 220),
+            (232, 156, 84, 220),
         )
-        self.draw_lightning()
+        self.draw_food()
 
-    def draw_lightning(self):
-        """Draw a simple lightning-bolt icon."""
+    def draw_food(self):
+        """Draw a simple ration-box icon."""
         x = self.sprite.center_x
         y = self.sprite.center_y
-        bolt = [
-            (x - 2, y + 11),
-            (x + 4, y + 1),
-            (x + 1, y + 1),
-            (x + 7, y - 10),
-            (x - 1, y - 2),
-            (x + 2, y - 2),
-            (x - 5, y + 11),
+        box = [
+            (x - 7, y - 7),
+            (x + 7, y - 7),
+            (x + 9, y + 5),
+            (x - 5, y + 9),
         ]
-        arcade.draw_polygon_filled(bolt, (255, 200, 40))
+        arcade.draw_polygon_filled(box, (120, 72, 34))
+        arcade.draw_rect_filled(
+            arcade.LRBT(left=x - 5, right=x + 5, bottom=y - 4, top=y + 2),
+            color=(255, 220, 150),
+        )
+        arcade.draw_line(x - 6, y + 4, x + 7, y + 4, (255, 255, 255, 120), 1)
 
 
 class RunnerGame(arcade.Window):
@@ -215,7 +248,7 @@ class RunnerGame(arcade.Window):
 
         self.player_sprite = None
         self.obstacle_list = []
-        self.energy_pickups = []
+        self.food_pickups = []
         self.particles = arcade.SpriteList()
         self.keys_down = set()
 
@@ -226,6 +259,10 @@ class RunnerGame(arcade.Window):
         self.player_move_speed = FREE_MOVE_SPEED
         self.lane_lerp_speed = LERP_SPEED
         self.energy = ENERGY_MAX
+        self.energy_drain_duration = random.uniform(
+            ENERGY_DRAIN_MIN_SECONDS, ENERGY_DRAIN_MAX_SECONDS
+        )
+        self.energy_drain_rate = ENERGY_MAX / self.energy_drain_duration
         self.food = INITIAL_FOOD
         self.score = 0
         self.best_score = 0
@@ -243,9 +280,9 @@ class RunnerGame(arcade.Window):
             "You are a sailor.",
             "Your family is waiting for you in Italy.",
             "You've been hired to guide a boat across the Mediterranean.",
-            "Food and Energy are your only resources.",
-            "Energy drains constantly. Food restores it.",
-            "Hit obstacles to lose Energy. Lose all Energy, and the journey ends.",
+            "Food is your only visible resource.",
+            "A hidden stamina pool drains over time. Food restores it.",
+            "Hit obstacles and your hidden stamina drops. Let it reach zero and the journey ends.",
             "Each level shows a different part of the crossing and what people face there.",
             "Press SPACE to continue...",
         ]
@@ -257,13 +294,13 @@ class RunnerGame(arcade.Window):
                 "title": "THE DEPARTURE",
                 "journey": "This is the moment of leaving. The boat is small, the supplies are limited, and the choice to cross already carries fear and hope at the same time.",
                 "explanation": "People often begin by packing only what they can carry and leaving behind home, family, and certainty.",
-                "focus": "Use this opening stretch to build a safe reserve of Energy and Food.",
+                "focus": "Use this opening stretch to build a safe reserve of Food and supplies.",
             },
             {
                 "title": "OPEN WATERS",
                 "journey": "Out here, the sea feels endless. There is no shoreline to follow, only distance, fatigue, and the pressure of keeping the boat moving.",
                 "explanation": "Long crossings test endurance. Every mistake costs more because help is far away.",
-                "focus": "Stay steady and avoid unnecessary collisions. Conserving Energy matters most here.",
+                "focus": "Stay steady and avoid unnecessary collisions. Conserving supplies matters most here.",
             },
             {
                 "title": "THE NARROWS",
@@ -276,7 +313,7 @@ class RunnerGame(arcade.Window):
                 "title": "THE WATCHLINE",
                 "journey": "Now the risk is not just the sea. Patrols become part of the journey, and staying hidden can matter as much as staying afloat.",
                 "explanation": "People on the move can face surveillance, interception, and the fear of being spotted when they are already exhausted.",
-                "focus": "Move carefully. Avoid attention and protect the Energy you still have.",
+                "focus": "Move carefully. Avoid attention and protect the supplies you still have.",
                 "movement": "free",
                 "boat_speed": 170,
                 "speed_scale": 0.9,
@@ -307,7 +344,7 @@ class RunnerGame(arcade.Window):
         """Initialize game state."""
         self.state = STATE_PLAYING
         self.obstacle_list = []
-        self.energy_pickups = []
+        self.food_pickups = []
         self.particles = arcade.SpriteList()
         self.keys_down = set()
 
@@ -325,6 +362,10 @@ class RunnerGame(arcade.Window):
         self.player_sprite.center_y = PLAYER_Y
 
         self.energy = ENERGY_MAX
+        self.energy_drain_duration = random.uniform(
+            ENERGY_DRAIN_MIN_SECONDS, ENERGY_DRAIN_MAX_SECONDS
+        )
+        self.energy_drain_rate = ENERGY_MAX / self.energy_drain_duration
         self.food = INITIAL_FOOD
         self.score = 0
         self.distance = 0
@@ -377,11 +418,11 @@ class RunnerGame(arcade.Window):
             pickup_chance = 0.16
 
         if random.random() < pickup_chance:
-            self.spawn_energy_pickup()
+            self.spawn_food_pickup()
 
     def spawn_basic_wave(self):
         """Spawn basic rocks."""
-        num_obstacles = random.randint(1, min(4, 1 + int(self.game_time // 15)))
+        num_obstacles = random.randint(1, min(3, 1 + int(self.game_time // 25)))
         lanes_to_use = random.sample(range(NUM_LANES), k=num_obstacles)
 
         for lane_idx in lanes_to_use:
@@ -400,11 +441,11 @@ class RunnerGame(arcade.Window):
     def spawn_tidal_wave(self):
         """Spawn faster obstacles."""
         if self.area == 2:
-            num_obstacles = random.randint(1, 3)
-            speed_multiplier = 1.25
+            num_obstacles = random.randint(1, 2)
+            speed_multiplier = 1.08
         else:
-            num_obstacles = random.randint(2, 5)
-            speed_multiplier = 1.5
+            num_obstacles = random.randint(1, 3)
+            speed_multiplier = 1.18
         lanes_to_use = random.sample(range(NUM_LANES), k=num_obstacles)
 
         for lane_idx in lanes_to_use:
@@ -432,7 +473,7 @@ class RunnerGame(arcade.Window):
         available_lanes = max(8, NUM_LANES - int(self.area_timer // 2))
         lane_offset = (NUM_LANES - available_lanes) // 2
 
-        num_obstacles = random.randint(3, 6)
+        num_obstacles = random.randint(2, 4)
         valid_lanes = list(range(lane_offset)) + list(
             range(NUM_LANES - lane_offset, NUM_LANES)
         )
@@ -459,11 +500,11 @@ class RunnerGame(arcade.Window):
         else:
             self.spawn_basic_wave()
 
-    def spawn_energy_pickup(self):
-        """Spawn a lightning pickup that restores energy."""
+    def spawn_food_pickup(self):
+        """Spawn a food pickup that restores food supplies."""
         x = random.choice(LANES)
-        pickup = EnergyPickup(x, HEIGHT + 50)
-        self.energy_pickups.append(pickup)
+        pickup = FoodPickup(x, HEIGHT + 50)
+        self.food_pickups.append(pickup)
 
     def create_explosion(self, x, y):
         """Create particle explosion effect."""
@@ -476,10 +517,10 @@ class RunnerGame(arcade.Window):
             particle.lifetime = 60
             self.particles.append(particle)
 
-    def create_lightning_burst(self, x, y):
-        """Create a bright burst for energy pickup feedback."""
+    def create_food_burst(self, x, y):
+        """Create a bright burst for food pickup feedback."""
         for _ in range(14):
-            particle = arcade.SpriteSolidColor(width=4, height=4, color=(255, 240, 120))
+            particle = arcade.SpriteSolidColor(width=4, height=4, color=(255, 210, 120))
             particle.center_x = x + random.uniform(-8, 8)
             particle.center_y = y + random.uniform(-8, 8)
             particle.change_x = random.uniform(-4, 4)
@@ -507,10 +548,12 @@ class RunnerGame(arcade.Window):
         for obstacle in self.obstacle_list:
             obstacle.draw_with_glow()
 
-        for pickup in self.energy_pickups:
+        for pickup in self.food_pickups:
             pickup.draw_with_glow()
 
         self.draw_boat()
+
+        self.draw_energy_drain_overlay()
 
         for particle in self.particles:
             arcade.draw_sprite(particle)
@@ -558,42 +601,6 @@ class RunnerGame(arcade.Window):
             bold=True,
         )
 
-        energy_bar_y = bar_y - 22
-        energy_ratio = max(0, min(1, self.energy / ENERGY_MAX))
-        if energy_ratio > 0.5:
-            energy_color = arcade.color.GREEN
-        elif energy_ratio > 0.2:
-            energy_color = arcade.color.ORANGE
-        else:
-            energy_color = arcade.color.RED
-
-        arcade.draw_rect_outline(
-            arcade.LRBT(
-                left=bar_x,
-                right=bar_x + bar_width,
-                bottom=energy_bar_y,
-                top=energy_bar_y + bar_height,
-            ),
-            color=arcade.color.WHITE,
-            border_width=2,
-        )
-        arcade.draw_rect_filled(
-            arcade.LRBT(
-                left=bar_x,
-                right=bar_x + (bar_width * energy_ratio),
-                bottom=energy_bar_y,
-                top=energy_bar_y + bar_height,
-            ),
-            color=energy_color,
-        )
-        arcade.draw_text(
-            f"ENERGY: {int(self.energy)}",
-            bar_x + 210,
-            energy_bar_y + 2,
-            color=arcade.color.WHITE,
-            font_size=14,
-            bold=True,
-        )
         arcade.draw_text(
             f"DISTANCE: {int(self.distance)}m",
             WIDTH - 180,
@@ -609,8 +616,15 @@ class RunnerGame(arcade.Window):
             color=arcade.color.LIGHT_CYAN,
             font_size=12,
         )
+        supply_ratio = max(0, min(1, self.energy / ENERGY_MAX))
+        if supply_ratio > 0.45:
+            supply_text = "SUPPLIES STABLE"
+        elif supply_ratio > 0.2:
+            supply_text = "SUPPLIES RUNNING LOW"
+        else:
+            supply_text = "SUPPLIES CRITICAL"
         arcade.draw_text(
-            "LIGHTNING RESTORES ENERGY",
+            supply_text,
             WIDTH // 2,
             HEIGHT - 48,
             color=arcade.color.LIGHT_YELLOW,
@@ -960,65 +974,108 @@ class RunnerGame(arcade.Window):
                     3,
                 )
 
-        for x in range(0, WIDTH + 1, LANE_WIDTH):
+        vanishing_x = WIDTH / 2
+        for lane_idx in range(NUM_LANES + 1):
+            bottom_x = lane_idx * LANE_WIDTH
+            top_x = vanishing_x + (bottom_x - vanishing_x) * 0.16
             arcade.draw_line(
-                start_x=x,
+                start_x=bottom_x,
                 start_y=0,
-                end_x=x,
-                end_y=HEIGHT,
-                color=(180, 220, 255, int(14 * (1 - night) + 8 * night)),
+                end_x=top_x,
+                end_y=HORIZON_Y,
+                color=(180, 220, 255, int(20 * (1 - night) + 10 * night)),
                 line_width=1,
             )
 
-    def draw_boat(self):
-        """Draw the player as a small boat."""
-        x = self.player_sprite.center_x
-        y = self.player_sprite.center_y
-
-        arcade.draw_ellipse_filled(x + 2, y - 10, 34, 10, (0, 0, 0, 70))
+        road_left = (WIDTH * 0.5) - 260
+        road_right = (WIDTH * 0.5) + 260
         arcade.draw_polygon_filled(
             [
-                (x - 18, y - 8),
-                (x + 18, y - 8),
-                (x + 12, y - 18),
-                (x - 12, y - 18),
+                (road_left, 0),
+                (road_right, 0),
+                (WIDTH * 0.5 + 70, HORIZON_Y),
+                (WIDTH * 0.5 - 70, HORIZON_Y),
+            ],
+            (14, 52, 92, 80),
+        )
+
+    def draw_boat(self):
+        """Draw the player as a small boat."""
+        x, y, scale = self.project_player(self.player_sprite.center_x, self.player_sprite.center_y)
+        boat_width = 36 * scale
+        boat_height = 24 * scale
+        sail_height = 28 * scale
+
+        arcade.draw_ellipse_filled(x + 2, y - 8 * scale, boat_width * 0.95, 10 * scale, (0, 0, 0, 70))
+        arcade.draw_polygon_filled(
+            [
+                (x - boat_width * 0.5, y - boat_height * 0.35),
+                (x + boat_width * 0.5, y - boat_height * 0.35),
+                (x + boat_width * 0.33, y - boat_height * 1.05),
+                (x - boat_width * 0.33, y - boat_height * 1.05),
             ],
             (108, 62, 30),
         )
         arcade.draw_polygon_filled(
             [
-                (x - 16, y - 7),
-                (x + 16, y - 7),
-                (x + 10, y - 15),
-                (x - 10, y - 15),
+                (x - boat_width * 0.45, y - boat_height * 0.28),
+                (x + boat_width * 0.45, y - boat_height * 0.28),
+                (x + boat_width * 0.28, y - boat_height * 0.92),
+                (x - boat_width * 0.28, y - boat_height * 0.92),
             ],
             (165, 96, 52),
         )
         arcade.draw_rect_filled(
-            arcade.LRBT(left=x - 7, right=x + 7, bottom=y - 4, top=y + 7),
+            arcade.LRBT(left=x - 7 * scale, right=x + 7 * scale, bottom=y - 4 * scale, top=y + 7 * scale),
             color=(230, 235, 240),
         )
         arcade.draw_triangle_filled(
-            x - 2,
-            y + 17,
-            x - 2,
-            y - 2,
-            x + 17,
-            y + 6,
+            x - 2 * scale,
+            y + sail_height,
+            x - 2 * scale,
+            y - 2 * scale,
+            x + 17 * scale,
+            y + 6 * scale,
             (245, 248, 255),
         )
         arcade.draw_triangle_filled(
-            x - 2,
-            y + 15,
-            x - 2,
-            y + 1,
-            x - 18,
-            y + 7,
+            x - 2 * scale,
+            y + sail_height * 0.95,
+            x - 2 * scale,
+            y + 1 * scale,
+            x - 18 * scale,
+            y + 7 * scale,
             (210, 220, 230),
         )
-        arcade.draw_line(x - 2, y + 17, x - 2, y - 14, (80, 50, 30), 2)
-        arcade.draw_line(x - 16, y - 10, x + 16, y - 10, (255, 255, 255, 80), 2)
-        arcade.draw_circle_filled(x, y - 2, 3, (255, 255, 255))
+        arcade.draw_line(x - 2 * scale, y + sail_height, x - 2 * scale, y - 14 * scale, (80, 50, 30), max(1, int(2 * scale)))
+        arcade.draw_line(x - 16 * scale, y - 10 * scale, x + 16 * scale, y - 10 * scale, (255, 255, 255, 80), max(1, int(2 * scale)))
+        arcade.draw_circle_filled(x, y - 2 * scale, max(1, int(3 * scale)), (255, 255, 255))
+
+    def project_player(self, x, y):
+        """Project the player into the forward-looking view."""
+        max_y = HEIGHT + 60
+        t = max(0.0, min(1.0, 1.0 - (y / max_y)))
+        depth_scale = 0.28 + 0.72 * t
+        projected_x = (WIDTH / 2) + ((x - (WIDTH / 2)) * depth_scale)
+        projected_y = HORIZON_Y + ((PLAYER_Y - HORIZON_Y) * t)
+        return projected_x, projected_y, depth_scale
+
+    def draw_energy_drain_overlay(self):
+        """Darken the scene as stamina gets low."""
+        energy_ratio = max(0.0, min(1.0, self.energy / ENERGY_MAX))
+        if energy_ratio >= LOW_ENERGY_THRESHOLD:
+            return
+
+        if energy_ratio <= LOW_ENERGY_FULL_DARK:
+            alpha = 170
+        else:
+            t = (LOW_ENERGY_THRESHOLD - energy_ratio) / (LOW_ENERGY_THRESHOLD - LOW_ENERGY_FULL_DARK)
+            alpha = int(70 + (120 * t))
+
+        arcade.draw_rect_filled(
+            arcade.LRBT(left=0, right=WIDTH, bottom=0, top=HEIGHT),
+            color=(0, 0, 0, alpha),
+        )
 
     def on_update(self, delta_time):
         """Update game logic."""
@@ -1034,9 +1091,9 @@ class RunnerGame(arcade.Window):
     def update_game(self, delta_time):
         """Update main game state."""
         self.game_time += delta_time
-        self.distance += delta_time * 50
+        self.distance += delta_time * 32
         self.area_timer += delta_time
-        self.energy -= ENERGY_DRAIN_RATE * delta_time
+        self.energy -= self.energy_drain_rate * delta_time
 
         if self.area < len(self.area_descriptions) and self.area_timer > 30:
             self.area += 1
@@ -1057,21 +1114,21 @@ class RunnerGame(arcade.Window):
         else:
             self.update_free_movement(delta_time)
 
-        self.obstacle_speed = 6.5 + (self.game_time * 0.22) + (self.area * 0.4)
+        self.obstacle_speed = BASE_OBSTACLE_SPEED + (self.game_time * OBSTACLE_SPEED_RAMP) + (self.area * 0.18)
         if self.area == 2:
-            self.obstacle_speed -= 0.5
+            self.obstacle_speed -= 0.35
 
-        spawn_rate = max(0.22, 0.7 - (self.game_time * 0.01))
+        spawn_rate = max(MIN_SPAWN_INTERVAL, BASE_SPAWN_INTERVAL - (self.game_time * 0.004))
         self.spawn_timer += delta_time
         if self.spawn_timer >= spawn_rate:
             self.spawn_timer = 0.0
             self.spawn_wave()
 
         pickup_speed = self.obstacle_speed * 0.92
-        for pickup in self.energy_pickups[:]:
+        for pickup in self.food_pickups[:]:
             pickup.update(pickup_speed)
             if pickup.sprite.top < 0:
-                self.energy_pickups.remove(pickup)
+                self.food_pickups.remove(pickup)
 
         for obstacle in self.obstacle_list[:]:
             if isinstance(obstacle, CoastguardObstacle):
@@ -1083,14 +1140,14 @@ class RunnerGame(arcade.Window):
             if obstacle.sprite.top < 0:
                 self.obstacle_list.remove(obstacle)
 
-        for pickup in self.energy_pickups[:]:
+        for pickup in self.food_pickups[:]:
             if arcade.check_for_collision(self.player_sprite, pickup.sprite):
-                self.energy = min(ENERGY_MAX, self.energy + ENERGY_PICKUP_AMOUNT)
-                self.create_lightning_burst(
+                self.food += 1
+                self.create_food_burst(
                     self.player_sprite.center_x,
                     self.player_sprite.center_y,
                 )
-                self.energy_pickups.remove(pickup)
+                self.food_pickups.remove(pickup)
 
         for obstacle in self.obstacle_list[:]:
             if arcade.check_for_collision(self.player_sprite, obstacle.sprite):
