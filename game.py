@@ -16,7 +16,7 @@ FORWARD_SPEED = 1.1
 
 # Spacing & Current settings
 SPAWN_RATE = 90
-CURRENT_HEIGHT = 32000
+CURRENT_HEIGHT = 800  # Drastically shortened so they end quickly
 
 LANES = [LANE_WIDTH // 2 + i * LANE_WIDTH for i in range(NUM_LANES)]
 
@@ -46,8 +46,6 @@ class MediterraneanJourney(arcade.Window):
 
         # Start the game in the menu
         self.in_menu = True
-
-        # Call reset just to initialize variables, but keep menu active
         self.reset()
         self.in_menu = True
 
@@ -115,23 +113,32 @@ class MediterraneanJourney(arcade.Window):
                 arcade.draw_text(text, WIDTH / 2 - 200, HEIGHT - 400 - (i * 45), arcade.color.WHITE, 18)
 
             arcade.draw_text("Press 1-6 to Start", WIDTH / 2, HEIGHT - 750, arcade.color.GOLD, 20, anchor_x="center", bold=True)
-            return  # Stop drawing the rest of the game if we are in the menu
+            return
 
         # --- NORMAL GAME DRAWING ---
 
-        # 0. Draw barely visible background water lanes
-        for x in LANES:
-            arcade.draw_line(x, 0, x, HEIGHT, (255, 255, 255, 5), 1)
-
-        # 1. Draw Currents (Speed Lanes and Rip Currents)
+        # 1. Draw Currents with Fade In / Fade Out logic
         for curr in self.currents:
             width = curr['size'] * LANE_WIDTH
             center_x = (curr['start_lane'] * LANE_WIDTH) + (width / 2)
 
-            if curr.get('is_rip', False):
-                color = (100, 180, 220, 20)
+            # Calculate alpha modulation based on screen position
+            # Fades in over the top 150px and out over the bottom 150px
+            max_alpha = 8 if curr.get('is_rip', False) else 12
+
+            if curr['y'] > HEIGHT - 150:
+                fade_pct = (HEIGHT - curr['y']) / 150.0
+                alpha = int(max_alpha * max(0.0, min(1.0, fade_pct)))
+            elif curr['y'] < 150:
+                fade_pct = curr['y'] / 150.0
+                alpha = int(max_alpha * max(0.0, min(1.0, fade_pct)))
             else:
-                color = (135, 206, 250, 35)
+                alpha = max_alpha
+
+            if curr.get('is_rip', False):
+                color = (100, 180, 220, alpha)
+            else:
+                color = (135, 206, 250, alpha)
 
             arcade.draw_rect_filled(
                 arcade.XYWH(center_x, curr['y'], width, curr['height']), color
@@ -215,16 +222,15 @@ class MediterraneanJourney(arcade.Window):
                 elif char == 'D':
                     arcade.draw_rect_filled(arcade.XYWH(start_x + col_idx, start_y - row_idx, 1, 1), inside_color)
 
-        # 7. Draw UI
-        arcade.draw_text(f"FOOD: {self.food_percentage:.1f}% / {self.max_food_percentage:.1f}%",
+        # 7. Draw UI (Changed to RATIONS, instruction prompt removed)
+        arcade.draw_text(f"RATIONS: {self.food_percentage:.1f}% / {self.max_food_percentage:.1f}%",
                          15, HEIGHT - 35, arcade.color.ORANGE, 16, bold=True)
-        arcade.draw_text("Press SPACE to eat", 15, HEIGHT - 55, arcade.color.WHITE, 12)
 
         if self.energy_buffer > 0:
-            arcade.draw_text("REPLENISHING...", 15, HEIGHT - 75, arcade.color.YELLOW, 12, bold=True)
+            arcade.draw_text("REPLENISHING...", 15, HEIGHT - 65, arcade.color.YELLOW, 12, bold=True)
 
         if self.engine_failed:
-            arcade.draw_text("ENGINE FAILURE - DRIFTING", 15, HEIGHT - 95, arcade.color.RED, 14, bold=True)
+            arcade.draw_text("ENGINE FAILURE - DRIFTING", 15, HEIGHT - 85, arcade.color.RED, 14, bold=True)
 
         if self.in_current and not self.engine_failed and not self.in_rip_current:
             multiplier = self.current_active_speed / FORWARD_SPEED
@@ -251,7 +257,6 @@ class MediterraneanJourney(arcade.Window):
             arcade.draw_text("Press ENTER to return to Menu", WIDTH / 2, HEIGHT / 2 - 40, arcade.color.WHITE, 20, anchor_x="center")
 
     def on_update(self, delta_time):
-        # Stop updates if in a non-playing state
         if self.in_menu or self.game_over or self.rescued or self.caught:
             return
 
@@ -342,14 +347,15 @@ class MediterraneanJourney(arcade.Window):
                 self.player_lane += 1
                 self.player_target_x = LANES[self.player_lane]
 
-        # --- GEOGRAPHICAL ZONES LOGIC ---
+        # --- SEAMLESS GEOGRAPHICAL ZONES LOGIC ---
         if self.spawn_timer >= SPAWN_RATE:
 
+            # Adjusted scoring ranges so they fit flush back-to-back
             in_zone_1 = self.score <= 1500
             in_zone_2 = 1500 < self.score <= 5000
             in_zone_3 = 5000 < self.score <= 10000
             in_zone_4 = 10000 < self.score <= 15000
-            in_zone_5 = 15001 < self.score <= 16000
+            in_zone_5 = 15000 < self.score <= 16000
             in_zone_6 = self.score > 16000
 
             # --- CURRENTS ---
@@ -361,7 +367,7 @@ class MediterraneanJourney(arcade.Window):
                         is_rip = True
                         size = random.randint(15, 25)
                         current_speed = FORWARD_SPEED * 0.2
-                        current_h = 8000
+                        current_h = 350 # Sinks/ends much quicker
                     else:
                         roll = random.random()
                         if roll < 0.30: size = random.randint(1, 3)
@@ -466,6 +472,7 @@ class MediterraneanJourney(arcade.Window):
         for obs in self.obstacles[:]:
             obs[1] -= self.current_active_speed
 
+            # --- Unforgiving Collision (No I-Frames) ---
             if abs(self.player_x - obs[0]) < 6 and abs(obs[1] - PLAYER_Y) < 10:
                 self.energy -= 70.0
                 self.engine_failure_chance += 0.05
@@ -482,7 +489,6 @@ class MediterraneanJourney(arcade.Window):
                 self.obstacles.remove(obs)
 
     def on_key_press(self, key, modifiers):
-
         # --- Handle Menu Input ---
         if self.in_menu:
             if key == arcade.key.KEY_1: self.reset(0)
