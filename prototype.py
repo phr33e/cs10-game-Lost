@@ -1536,12 +1536,13 @@ class RunnerGame(arcade.Window):
 
     def manual_dialogue_available(self):
         """Return True when a player-initiated talk point is ready."""
-        if self.dialogue_open:
+        if self.dialogue_open or self.dialogue_cooldown > 0:
             return False
         stage = self.current_dialogue_stage()
-        if self.manual_dialogue_index >= 1:
+        manual_dialogues = stage["manual"]
+        if self.manual_dialogue_index >= len(manual_dialogues):
             return False
-        return self.stage_progress_distance() >= stage["manual"]["trigger_distance"]
+        return self.stage_progress_distance() >= manual_dialogues[self.manual_dialogue_index]["trigger_distance"]
 
     def update_dialogue_triggers(self):
         """Start manual or auto conversations when their trigger points are reached."""
@@ -1551,14 +1552,27 @@ class RunnerGame(arcade.Window):
         stage = self.current_dialogue_stage()
         progress = self.stage_progress_distance()
 
-        if self.auto_dialogue_index < 1 and progress >= stage["auto"]["trigger_distance"]:
-            self.start_dialogue(stage["auto"], mode="auto")
-            self.auto_dialogue_index = 1
+        next_auto = self.next_auto_dialogue()
+        if next_auto is not None and progress >= next_auto["trigger_distance"]:
+            self.start_dialogue(next_auto, mode="auto")
+            self.auto_dialogue_index += 1
             return
 
-        if self.manual_dialogue_index < 1 and progress >= stage["manual"]["trigger_distance"]:
-            # Leave the actual opening to the player's T press.
-            return
+    def next_manual_dialogue(self):
+        """Return the next manual dialogue beat for the current stage."""
+        stage = self.current_dialogue_stage()
+        manual_dialogues = stage["manual"]
+        if self.manual_dialogue_index >= len(manual_dialogues):
+            return None
+        return manual_dialogues[self.manual_dialogue_index]
+
+    def next_auto_dialogue(self):
+        """Return the next automatic dialogue beat for the current stage."""
+        stage = self.current_dialogue_stage()
+        auto_dialogues = stage["auto"]
+        if self.auto_dialogue_index >= len(auto_dialogues):
+            return None
+        return auto_dialogues[self.auto_dialogue_index]
 
     def start_dialogue(self, dialogue, mode):
         """Begin a dialogue in either manual or auto mode."""
@@ -1571,10 +1585,10 @@ class RunnerGame(arcade.Window):
     def advance_dialogue(self):
         """Advance or close the active passenger dialogue."""
         if self.active_dialogue is None:
-            stage = self.current_dialogue_stage()
-            if self.manual_dialogue_index >= 1 or self.stage_progress_distance() < stage["manual"]["trigger_distance"]:
+            next_manual = self.next_manual_dialogue()
+            if next_manual is None or self.stage_progress_distance() < next_manual["trigger_distance"]:
                 return
-            self.start_dialogue(stage["manual"], mode="manual")
+            self.start_dialogue(next_manual, mode="manual")
             return
 
         if self.dialogue_mode == "auto":
@@ -1586,7 +1600,7 @@ class RunnerGame(arcade.Window):
 
         self.dialogue_open = False
         self.dialogue_cooldown = 1.25
-        self.manual_dialogue_index = 1
+        self.manual_dialogue_index += 1
         self.active_dialogue = None
         self.dialogue_line_index = 0
         self.dialogue_mode = None
@@ -1608,7 +1622,6 @@ class RunnerGame(arcade.Window):
 
         self.dialogue_open = False
         self.dialogue_cooldown = 1.0
-        self.auto_dialogue_index = 1
         self.active_dialogue = None
         self.dialogue_line_index = 0
         self.dialogue_mode = None
