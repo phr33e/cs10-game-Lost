@@ -43,9 +43,16 @@ class MediterraneanJourney(arcade.Window):
         super().__init__(WIDTH, HEIGHT, "Mediterranean Journey")
         arcade.set_background_color((15, 35, 75)) # Deep ocean blue
         self.keys_held = set()
-        self.reset()
 
-    def reset(self):
+        # Start the game in the menu
+        self.in_menu = True
+
+        # Call reset just to initialize variables, but keep menu active
+        self.reset()
+        self.in_menu = True
+
+    def reset(self, start_score=0):
+        """ Resets the game and allows injecting a starting score """
         self.player_lane = NUM_LANES // 2
         self.player_x = LANES[self.player_lane]
         self.player_target_x = LANES[self.player_lane]
@@ -57,7 +64,9 @@ class MediterraneanJourney(arcade.Window):
         self.in_rip_current = False
         self.current_active_speed = FORWARD_SPEED
         self.spawn_timer = 0
-        self.score = 0
+
+        # Inject the chosen starting score
+        self.score = start_score
         self.keys_held.clear()
 
         # --- Survival Mechanics ---
@@ -74,6 +83,8 @@ class MediterraneanJourney(arcade.Window):
         self.engine_failed = False
         self.engine_repair_timer = 0.0
 
+        # Turn off all game-stopping states
+        self.in_menu = False
         self.game_over = False
         self.rescued = False
         self.caught = False
@@ -86,9 +97,30 @@ class MediterraneanJourney(arcade.Window):
     def on_draw(self):
         self.clear()
 
+        # --- MAIN MENU SCREEN ---
+        if self.in_menu:
+            arcade.draw_text("MEDITERRANEAN JOURNEY", WIDTH / 2, HEIGHT - 250, arcade.color.WHITE, 40, anchor_x="center", bold=True)
+            arcade.draw_text("Select Starting Zone", WIDTH / 2, HEIGHT - 320, arcade.color.LIGHT_GRAY, 22, anchor_x="center")
+
+            menu_options = [
+                "1. Libyan Coastal Waters (Score 0)",
+                "2. The Empty Sea (Score 1,500)",
+                "3. Deep Sea Currents (Score 5,000)",
+                "4. The Deceptive Sea (Score 10,000)",
+                "5. Patrol Waters (Score 15,000)",
+                "6. The Lampedusa Approach (Score 25,000)"
+            ]
+
+            for i, text in enumerate(menu_options):
+                arcade.draw_text(text, WIDTH / 2 - 200, HEIGHT - 400 - (i * 45), arcade.color.WHITE, 18)
+
+            arcade.draw_text("Press 1-6 to Start", WIDTH / 2, HEIGHT - 750, arcade.color.GOLD, 20, anchor_x="center", bold=True)
+            return  # Stop drawing the rest of the game if we are in the menu
+
+        # --- NORMAL GAME DRAWING ---
+
         # 0. Draw barely visible background water lanes
         for x in LANES:
-            # 5 out of 255 alpha makes it incredibly faint
             arcade.draw_line(x, 0, x, HEIGHT, (255, 255, 255, 5), 1)
 
         # 1. Draw Currents (Speed Lanes and Rip Currents)
@@ -97,9 +129,9 @@ class MediterraneanJourney(arcade.Window):
             center_x = (curr['start_lane'] * LANE_WIDTH) + (width / 2)
 
             if curr.get('is_rip', False):
-                color = (100, 180, 220, 70)
+                color = (100, 180, 220, 20)
             else:
-                color = (135, 206, 250, 80)
+                color = (135, 206, 250, 35)
 
             arcade.draw_rect_filled(
                 arcade.XYWH(center_x, curr['y'], width, curr['height']), color
@@ -130,10 +162,7 @@ class MediterraneanJourney(arcade.Window):
                 night_intensity = 2.0 - (time_in_cycle / self.night_transition_speed)
 
         if night_intensity > 0.01 and not self.game_over and not self.rescued and not self.caught:
-            # The lamp radius is exactly 5 blocks
             lamp_radius = LANE_WIDTH * 5
-
-            # The darkness closes in until it perfectly matches the lamp radius
             current_fov = 1500.0 - ((1500.0 - lamp_radius) * night_intensity)
             num_bands = 15
             max_radius = 2000
@@ -149,8 +178,7 @@ class MediterraneanJourney(arcade.Window):
                     border_width=band_thickness + 2
                 )
 
-            # Draw the light yellow lantern glow under the boat
-            lamp_alpha = int(70 * night_intensity) # Fades in as night falls
+            lamp_alpha = int(70 * night_intensity)
             arcade.draw_circle_filled(
                 self.player_x, PLAYER_Y,
                 lamp_radius,
@@ -166,7 +194,7 @@ class MediterraneanJourney(arcade.Window):
                 (0, 0, 0, alpha)
             )
 
-        # 6. Draw Pixelated Player Boat (No more blinking/invincibility)
+        # 6. Draw Pixelated Player Boat
         pontoon_color = arcade.color.SLATE_GRAY
         inside_color = arcade.color.BISTRE
 
@@ -210,20 +238,21 @@ class MediterraneanJourney(arcade.Window):
         if self.rescued:
             arcade.draw_rect_filled(arcade.XYWH(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT), (0, 0, 0, 200))
             arcade.draw_text("LAMPEDUSA COAST SIGHTED. YOU SURVIVED.", WIDTH / 2, HEIGHT / 2, arcade.color.GOLD, 24, anchor_x="center", bold=True)
-            arcade.draw_text("Press ENTER to Restart", WIDTH / 2, HEIGHT / 2 - 40, arcade.color.WHITE, 20, anchor_x="center")
+            arcade.draw_text("Press ENTER to return to Menu", WIDTH / 2, HEIGHT / 2 - 40, arcade.color.WHITE, 20, anchor_x="center")
 
         elif self.caught:
             arcade.draw_rect_filled(arcade.XYWH(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT), (0, 0, 0, 230))
             arcade.draw_text("INTERCEPTED BY COASTGUARD", WIDTH / 2, HEIGHT / 2, arcade.color.RED, 26, anchor_x="center", bold=True)
-            arcade.draw_text("Press ENTER to Restart", WIDTH / 2, HEIGHT / 2 - 40, arcade.color.WHITE, 20, anchor_x="center")
+            arcade.draw_text("Press ENTER to return to Menu", WIDTH / 2, HEIGHT / 2 - 40, arcade.color.WHITE, 20, anchor_x="center")
 
         elif self.game_over:
             arcade.draw_rect_filled(arcade.XYWH(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT), arcade.color.BLACK)
             arcade.draw_text("THE JOURNEY HAS ENDED", WIDTH / 2, HEIGHT / 2, arcade.color.RED, 30, anchor_x="center", bold=True)
-            arcade.draw_text("Press ENTER to Restart", WIDTH / 2, HEIGHT / 2 - 40, arcade.color.WHITE, 20, anchor_x="center")
+            arcade.draw_text("Press ENTER to return to Menu", WIDTH / 2, HEIGHT / 2 - 40, arcade.color.WHITE, 20, anchor_x="center")
 
     def on_update(self, delta_time):
-        if self.game_over or self.rescued or self.caught:
+        # Stop updates if in a non-playing state
+        if self.in_menu or self.game_over or self.rescued or self.caught:
             return
 
         self.spawn_timer += 1
@@ -437,7 +466,6 @@ class MediterraneanJourney(arcade.Window):
         for obs in self.obstacles[:]:
             obs[1] -= self.current_active_speed
 
-            # --- Unforgiving Collision (No I-Frames) ---
             if abs(self.player_x - obs[0]) < 6 and abs(obs[1] - PLAYER_Y) < 10:
                 self.energy -= 70.0
                 self.engine_failure_chance += 0.05
@@ -454,11 +482,24 @@ class MediterraneanJourney(arcade.Window):
                 self.obstacles.remove(obs)
 
     def on_key_press(self, key, modifiers):
-        if self.game_over or self.rescued or self.caught:
-            if key == arcade.key.ENTER:
-                self.reset()
+
+        # --- Handle Menu Input ---
+        if self.in_menu:
+            if key == arcade.key.KEY_1: self.reset(0)
+            elif key == arcade.key.KEY_2: self.reset(1501)
+            elif key == arcade.key.KEY_3: self.reset(5001)
+            elif key == arcade.key.KEY_4: self.reset(10001)
+            elif key == arcade.key.KEY_5: self.reset(15001)
+            elif key == arcade.key.KEY_6: self.reset(25001)
             return
 
+        # --- Handle End State Returns ---
+        if self.game_over or self.rescued or self.caught:
+            if key == arcade.key.ENTER:
+                self.in_menu = True
+            return
+
+        # --- Handle Gameplay Input ---
         if key in [arcade.key.LEFT, arcade.key.A, arcade.key.RIGHT, arcade.key.D]:
             self.keys_held.add(key)
 
