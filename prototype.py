@@ -17,9 +17,9 @@ PLAYER_SIZE = LANE_WIDTH - 12
 LERP_SPEED = 0.2
 SLOW_LERP_SPEED = 0.12
 ENERGY_MAX = 100
-ENERGY_PER_FOOD = 35
-INITIAL_FOOD = 14
-AREA_ENERGY_BONUS = 8
+ENERGY_PER_FOOD = 28
+INITIAL_FOOD = 11
+AREA_ENERGY_BONUS = 5
 AREA_FOOD_BONUS = 1
 HORIZON_Y = 440
 NIGHT_START_TIME = 55.0
@@ -28,12 +28,12 @@ FREE_MOVE_SPEED = 180
 FREE_MOVE_SLOW_SPEED = 135
 PLAYER_MIN_Y = 55
 PLAYER_MAX_Y = 205
-ENERGY_DRAIN_MIN_SECONDS = 90.0
-ENERGY_DRAIN_MAX_SECONDS = 180.0
-BASE_OBSTACLE_SPEED = 4.2
-OBSTACLE_SPEED_RAMP = 0.11
-BASE_SPAWN_INTERVAL = 1.25
-MIN_SPAWN_INTERVAL = 0.85
+ENERGY_DRAIN_MIN_SECONDS = 72.0
+ENERGY_DRAIN_MAX_SECONDS = 145.0
+BASE_OBSTACLE_SPEED = 4.8
+OBSTACLE_SPEED_RAMP = 0.14
+BASE_SPAWN_INTERVAL = 1.08
+MIN_SPAWN_INTERVAL = 0.65
 LOW_ENERGY_THRESHOLD = 0.35
 LOW_ENERGY_FULL_DARK = 0.08
 
@@ -178,13 +178,13 @@ class CoastguardObstacle(Obstacle):
         distance = abs(player_x - self.sprite.center_x)
         if distance < self.visibility_range:
             self.spotted = True
-            self.chase_timer = 300
+            self.chase_timer = 360
 
     def update(self, obstacle_speed, player_x=None):
         if self.spotted and player_x is not None:
             direction = 1 if player_x > self.sprite.center_x else -1
-            self.sprite.center_x += direction * 3
-            self.sprite.center_y -= obstacle_speed * 0.5
+            self.sprite.center_x += direction * 4
+            self.sprite.center_y -= obstacle_speed * 0.65
             self.chase_timer -= 1
 
             if self.chase_timer <= 0:
@@ -664,18 +664,18 @@ class RunnerGame(arcade.Window):
             if random.random() < 0.4:
                 self.spawn_tidal_wave()
 
-        pickup_chance = 0.08
+        pickup_chance = 0.06
         if self.area == 2:
-            pickup_chance = 0.14
-        elif self.area >= 4:
             pickup_chance = 0.1
+        elif self.area >= 4:
+            pickup_chance = 0.07
 
         if random.random() < pickup_chance:
             self.spawn_food_pickup()
 
     def spawn_basic_wave(self):
         """Spawn basic rocks."""
-        num_obstacles = random.randint(1, min(3, 1 + int(self.game_time // 25)))
+        num_obstacles = random.randint(1, min(4, 1 + int(self.game_time // 18)))
         lanes_to_use = random.sample(range(NUM_LANES), k=num_obstacles)
 
         for lane_idx in lanes_to_use:
@@ -695,10 +695,10 @@ class RunnerGame(arcade.Window):
         """Spawn faster obstacles."""
         if self.area == 2:
             num_obstacles = random.randint(1, 2)
-            speed_multiplier = 1.08
+            speed_multiplier = 1.14
         else:
-            num_obstacles = random.randint(1, 3)
-            speed_multiplier = 1.18
+            num_obstacles = random.randint(2, 3)
+            speed_multiplier = 1.24
         lanes_to_use = random.sample(range(NUM_LANES), k=num_obstacles)
 
         for lane_idx in lanes_to_use:
@@ -726,7 +726,7 @@ class RunnerGame(arcade.Window):
         available_lanes = max(8, NUM_LANES - int(self.area_timer // 2))
         lane_offset = (NUM_LANES - available_lanes) // 2
 
-        num_obstacles = random.randint(2, 4)
+        num_obstacles = random.randint(3, 5)
         valid_lanes = list(range(lane_offset)) + list(
             range(NUM_LANES - lane_offset, NUM_LANES)
         )
@@ -746,7 +746,7 @@ class RunnerGame(arcade.Window):
 
     def spawn_coastguard_wave(self):
         """Spawn coastguard boats or regular obstacles."""
-        if random.random() < 0.3:
+        if random.random() < 0.42:
             x = random.choice(LANES)
             obstacle = CoastguardObstacle(x, HEIGHT + 50)
             self.obstacle_list.append(obstacle)
@@ -1459,11 +1459,13 @@ class RunnerGame(arcade.Window):
         else:
             self.update_free_movement(delta_time)
 
-        self.obstacle_speed = BASE_OBSTACLE_SPEED + (self.game_time * OBSTACLE_SPEED_RAMP) + (self.area * 0.18)
+        self.obstacle_speed = BASE_OBSTACLE_SPEED + (self.game_time * OBSTACLE_SPEED_RAMP) + (self.area * 0.24)
         if self.area == 2:
-            self.obstacle_speed -= 0.35
+            self.obstacle_speed += 0.1
+        elif self.area >= 4:
+            self.obstacle_speed += 0.4
 
-        spawn_rate = max(MIN_SPAWN_INTERVAL, BASE_SPAWN_INTERVAL - (self.game_time * 0.004))
+        spawn_rate = max(MIN_SPAWN_INTERVAL, BASE_SPAWN_INTERVAL - (self.game_time * 0.0055))
         self.spawn_timer += delta_time
         if self.spawn_timer >= spawn_rate:
             self.spawn_timer = 0.0
@@ -1499,7 +1501,7 @@ class RunnerGame(arcade.Window):
                 if isinstance(obstacle, CoastguardObstacle) and obstacle.spotted:
                     self.game_over_event()
                 else:
-                    self.energy -= 25
+                    self.energy -= 32
                     self.create_explosion(
                         self.player_sprite.center_x,
                         self.player_sprite.center_y,
