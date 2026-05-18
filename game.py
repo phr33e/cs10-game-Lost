@@ -4,26 +4,25 @@ import random
 # Screen configuration
 NUM_LANES = 100
 LANE_WIDTH = 10
-WIDTH = NUM_LANES * LANE_WIDTH  # 1000 pixels wide
+WIDTH = NUM_LANES * LANE_WIDTH
 HEIGHT = 600
 
 # Player position
-PLAYER_Y = HEIGHT // 2  # Middle of the screen
+PLAYER_Y = HEIGHT // 2
 
-# Speed settings (Slowed down further)
-SLIDE_SPEED = 0.25     # Was 0.4
-FORWARD_SPEED = 1.1    # Was 1.75
+# Speed settings
+SLIDE_SPEED = 0.25
+FORWARD_SPEED = 1.1
 
 # Spacing & Current settings
 SPAWN_RATE = 90
 CURRENT_HEIGHT = 32000
 
-# Generate coordinates for the center of all 100 lanes
 LANES = [LANE_WIDTH // 2 + i * LANE_WIDTH for i in range(NUM_LANES)]
 
 class SimpleRunner100(arcade.Window):
     def __init__(self):
-        super().__init__(WIDTH, HEIGHT, "100-Lane Currents MVP")
+        super().__init__(WIDTH, HEIGHT, "Mediterranean Journey")
         arcade.set_background_color(arcade.color.BLACK)
         self.keys_held = set()
         self.reset()
@@ -41,13 +40,22 @@ class SimpleRunner100(arcade.Window):
         self.keys_held.clear()
 
         # --- Survival Mechanics ---
-        self.energy = 100.0                 # Max 100. Depletes at 1 point per 60 seconds
+        self.energy = 100.0                 # 1 point = 60 seconds
         self.max_food_percentage = 100.0
         self.food_percentage = 100.0
         self.energy_buffer = 0.0
-        self.healing_rate = 5.0             # Processes 5 energy per second from the buffer
+        self.healing_rate = 5.0
         self.invulnerable_timer = 0.0
+
+        # --- Engine Failure Mechanics ---
+        self.engine_failure_chance = 0.01   # Starts at 1%
+        self.engine_check_timer = 0.0
+        self.next_engine_check = random.uniform(300.0, 420.0) # Every 5 to 7 mins
+        self.engine_failed = False
+        self.engine_repair_timer = 0.0
+
         self.game_over = False
+        self.rescued = False
 
         # --- Day / Night Cycle ---
         self.day_timer = 0.0
@@ -70,14 +78,14 @@ class SimpleRunner100(arcade.Window):
                 (46, 204, 113, 80)
             )
 
-        # 2. Draw Obstacles (Rocks)
+        # 2. Draw Obstacles (Rocks/Debris)
         for obs in self.obstacles:
             arcade.draw_rect_filled(
                 arcade.XYWH(obs[0], obs[1], LANE_WIDTH - 2, LANE_WIDTH - 2),
                 arcade.color.DARK_GRAY
             )
 
-        # 3. Day/Night Cycle (Encroaching Gradient FOV)
+        # 3. Day/Night Cycle
         night_intensity = 0.0
         if self.day_timer > self.morning_duration:
             time_in_cycle = (self.day_timer - self.morning_duration) % (self.night_transition_speed * 2)
@@ -86,9 +94,8 @@ class SimpleRunner100(arcade.Window):
             else:
                 night_intensity = 2.0 - (time_in_cycle / self.night_transition_speed)
 
-        if night_intensity > 0.01 and not self.game_over:
+        if night_intensity > 0.01 and not self.game_over and not self.rescued:
             current_fov = 1200.0 - (1100.0 * night_intensity)
-
             num_bands = 15
             max_radius = 1500
             band_thickness = (max_radius - current_fov) / num_bands
@@ -96,7 +103,6 @@ class SimpleRunner100(arcade.Window):
             for i in range(num_bands):
                 r = current_fov + (i * band_thickness)
                 band_alpha = int((255 * night_intensity) * ((i + 1) / num_bands))
-
                 arcade.draw_circle_outline(
                     self.player_x, PLAYER_Y,
                     radius=r + (band_thickness / 2),
@@ -104,9 +110,8 @@ class SimpleRunner100(arcade.Window):
                     border_width=band_thickness + 2
                 )
 
-        # 4. Low Energy Vignette (Replaced the Dialogue Box)
-        # Starts darkening when you have less than 15 energy (15 minutes) left
-        if self.energy < 15 and not self.game_over:
+        # 4. Low Energy Vignette (Under 15 energy = Under 15 mins left)
+        if self.energy < 15 and not self.game_over and not self.rescued:
             darkness = 1.0 - (max(self.energy, 0) / 15.0)
             alpha = int(245 * darkness)
             arcade.draw_rect_filled(
@@ -114,15 +119,19 @@ class SimpleRunner100(arcade.Window):
                 (0, 0, 0, alpha)
             )
 
-        # 5. Draw Player (2 blocks long vertically - Drawn LAST so it glows in the dark)
+        # 5. Draw Player Boat
         if self.invulnerable_timer <= 0 or int(self.invulnerable_timer * 15) % 2 == 0:
             player_color = arcade.color.LIME_GREEN if self.in_current else arcade.color.CYAN
+            # If the engine is failed, turn the boat a warning color
+            if self.engine_failed:
+                player_color = arcade.color.FIREBRICK
+
             arcade.draw_rect_filled(
                 arcade.XYWH(self.player_x, PLAYER_Y, LANE_WIDTH - 2, (LANE_WIDTH * 2) - 2),
                 player_color
             )
 
-        # 6. Draw UI (SCORE IS HIDDEN)
+        # 6. Draw UI
         arcade.draw_text(f"FOOD: {self.food_percentage:.1f}% / {self.max_food_percentage:.1f}%",
                          15, HEIGHT - 35, arcade.color.ORANGE, 16, bold=True)
         arcade.draw_text("Press SPACE to eat", 15, HEIGHT - 55, arcade.color.GRAY, 12)
@@ -130,22 +139,53 @@ class SimpleRunner100(arcade.Window):
         if self.energy_buffer > 0:
             arcade.draw_text("REPLENISHING...", 15, HEIGHT - 75, arcade.color.YELLOW, 12, bold=True)
 
-        if self.in_current:
+        if self.engine_failed:
+            arcade.draw_text("ENGINE FAILURE - DRIFTING", 15, HEIGHT - 95, arcade.color.RED, 14, bold=True)
+
+        if self.in_current and not self.engine_failed:
             multiplier = self.current_active_speed / FORWARD_SPEED
             arcade.draw_text(f"IN CURRENT! x{multiplier:.1f} SPD", WIDTH - 15, HEIGHT - 35,
                              arcade.color.LIME_GREEN, 16, anchor_x="right", bold=True)
 
-        if self.game_over:
+        # End States
+        if self.rescued:
+            arcade.draw_rect_filled(arcade.XYWH(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT), (0, 0, 0, 200))
+            arcade.draw_text("LAMPEDUSA COAST SIGHTED. YOU SURVIVED.", WIDTH / 2, HEIGHT / 2, arcade.color.GOLD, 24, anchor_x="center", bold=True)
+            arcade.draw_text("Press ENTER to Restart", WIDTH / 2, HEIGHT / 2 - 40, arcade.color.WHITE, 20, anchor_x="center")
+
+        elif self.game_over:
             arcade.draw_rect_filled(arcade.XYWH(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT), arcade.color.BLACK)
-            arcade.draw_text("ENERGY DEPLETED - GAME OVER", WIDTH / 2, HEIGHT / 2, arcade.color.RED, 30, anchor_x="center", bold=True)
+            arcade.draw_text("THE JOURNEY HAS ENDED", WIDTH / 2, HEIGHT / 2, arcade.color.RED, 30, anchor_x="center", bold=True)
             arcade.draw_text("Press ENTER to Restart", WIDTH / 2, HEIGHT / 2 - 40, arcade.color.WHITE, 20, anchor_x="center")
 
     def on_update(self, delta_time):
-        if self.game_over:
+        if self.game_over or self.rescued:
             return
 
         self.spawn_timer += 1
         self.day_timer += delta_time
+
+        # --- Check Win Condition (Arriving at Lampedusa) ---
+        if self.score >= 30000:
+            self.rescued = True
+            return
+
+        # --- Engine Failure Logic ---
+        if self.engine_failed:
+            self.engine_repair_timer -= delta_time
+            if self.engine_repair_timer <= 0:
+                self.engine_failed = False
+        else:
+            self.engine_check_timer += delta_time
+            if self.engine_check_timer >= self.next_engine_check:
+                # Roll the dice
+                if random.random() < self.engine_failure_chance:
+                    self.engine_failed = True
+                    self.engine_repair_timer = 60.0 # Engine dead for 60 seconds
+
+                # Reset timer for the next check (5 to 7 mins)
+                self.engine_check_timer = 0.0
+                self.next_engine_check = random.uniform(300.0, 420.0)
 
         # --- Energy Buffer Healing ---
         if self.energy_buffer > 0:
@@ -160,7 +200,7 @@ class SimpleRunner100(arcade.Window):
                 self.energy = 100.0
                 self.energy_buffer = 0.0
 
-        # --- Base Energy Depletion (1 point = 60 seconds) ---
+        # --- Base Energy Depletion ---
         self.energy -= (1.0 / 60.0) * delta_time
         if self.energy <= 0:
             self.game_over = True
@@ -172,16 +212,20 @@ class SimpleRunner100(arcade.Window):
         self.in_current = False
         target_speed = FORWARD_SPEED
 
-        for curr in self.currents:
-            zone_left = curr['start_lane'] * LANE_WIDTH
-            zone_right = (curr['start_lane'] + curr['size']) * LANE_WIDTH
-            zone_bottom = curr['y'] - curr['height'] / 2
-            zone_top = curr['y'] + curr['height'] / 2
+        # If engine failed, override normal speeds to a crawl
+        if self.engine_failed:
+            target_speed = FORWARD_SPEED * 0.1
+        else:
+            for curr in self.currents:
+                zone_left = curr['start_lane'] * LANE_WIDTH
+                zone_right = (curr['start_lane'] + curr['size']) * LANE_WIDTH
+                zone_bottom = curr['y'] - curr['height'] / 2
+                zone_top = curr['y'] + curr['height'] / 2
 
-            if zone_left <= self.player_x <= zone_right and zone_bottom <= PLAYER_Y <= zone_top:
-                self.in_current = True
-                target_speed = curr['speed']
-                break
+                if zone_left <= self.player_x <= zone_right and zone_bottom <= PLAYER_Y <= zone_top:
+                    self.in_current = True
+                    target_speed = curr['speed']
+                    break
 
         # --- Fade Speed ---
         if self.current_active_speed < target_speed:
@@ -208,12 +252,17 @@ class SimpleRunner100(arcade.Window):
                 self.player_lane += 1
                 self.player_target_x = LANES[self.player_lane]
 
-        # --- Spawn Loop (Zones 1 & 2) ---
+        # --- Geographical Stages Spawn Logic ---
         if self.spawn_timer >= SPAWN_RATE:
 
-            in_zone_1 = self.score < 5000
+            # Determine Current Geographic Zone
+            in_libyan_coast = self.score < 5000
+            in_open_mediterranean = 5000 <= self.score < 15000
+            in_strait_of_sicily = 15000 <= self.score < 25000
+            in_lampedusa_approach = self.score >= 25000
 
-            if not in_zone_1:
+            # Currents spawn in the Open Med and Strait of Sicily
+            if in_open_mediterranean or in_strait_of_sicily:
                 if len(self.currents) == 0 and random.random() < 0.40:
                     roll = random.random()
                     if roll < 0.30: size = random.randint(1, 3)
@@ -230,19 +279,28 @@ class SimpleRunner100(arcade.Window):
                         'height': CURRENT_HEIGHT
                     })
 
-            num_clumps = random.randint(2, 5)
+            # Spawn Rock Clumps based on Zone
+            if in_libyan_coast:
+                num_clumps = random.randint(1, 3)
+                base_clump_size = (1, 3)
+            elif in_open_mediterranean:
+                num_clumps = random.randint(3, 5)
+                base_clump_size = (5, 10)
+            elif in_strait_of_sicily:
+                num_clumps = random.randint(4, 7)
+                base_clump_size = (6, 12)
+            else: # Lampedusa Approach (Final stretch, dense coastal rocks)
+                num_clumps = random.randint(6, 10)
+                base_clump_size = (8, 15)
+
             for _ in range(num_clumps):
                 center_lane = random.randint(10, NUM_LANES - 11)
                 center_y = HEIGHT + random.randint(20, 100)
-
-                if in_zone_1:
-                    clump_size = random.randint(1, 3)
-                else:
-                    clump_size = random.randint(5, 12)
+                clump_size = random.randint(base_clump_size[0], base_clump_size[1])
 
                 for _ in range(clump_size):
-                    lane_offset = random.randint(-4, 4)
-                    y_offset = random.randint(-40, 40)
+                    lane_offset = random.randint(-5, 5)
+                    y_offset = random.randint(-50, 50)
 
                     lane_idx = center_lane + lane_offset
                     if 0 <= lane_idx < NUM_LANES:
@@ -265,6 +323,9 @@ class SimpleRunner100(arcade.Window):
                 if abs(self.player_x - obs[0]) < 8 and abs(obs[1] - PLAYER_Y) < 13:
                     self.energy -= 70.0
 
+                    # Taking a hit increases the chance of an engine failure by 5%
+                    self.engine_failure_chance += 0.05
+
                     capacity_loss_percent = random.uniform(0.15, 0.45)
                     self.max_food_percentage *= (1.0 - capacity_loss_percent)
 
@@ -279,7 +340,7 @@ class SimpleRunner100(arcade.Window):
                 self.obstacles.remove(obs)
 
     def on_key_press(self, key, modifiers):
-        if self.game_over:
+        if self.game_over or self.rescued:
             if key == arcade.key.ENTER:
                 self.reset()
             return
@@ -302,8 +363,6 @@ class SimpleRunner100(arcade.Window):
                     food_to_eat = self.food_percentage
 
                 self.food_percentage -= food_to_eat
-
-                # 1% food eaten = exactly 1 point of energy (which equals 1 minute of survival)
                 self.energy_buffer += food_to_eat
 
     def on_key_release(self, key, modifiers):
