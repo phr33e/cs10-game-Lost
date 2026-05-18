@@ -10,9 +10,9 @@ HEIGHT = 600
 # Player position
 PLAYER_Y = HEIGHT // 2  # Middle of the screen
 
-# Speed settings (Halved per instructions)
-SLIDE_SPEED = 0.4      # Was 0.8
-FORWARD_SPEED = 1.75   # Was 3.5
+# Speed settings (Slowed down further)
+SLIDE_SPEED = 0.25     # Was 0.4
+FORWARD_SPEED = 1.1    # Was 1.75
 
 # Spacing & Current settings
 SPAWN_RATE = 90
@@ -41,11 +41,11 @@ class SimpleRunner100(arcade.Window):
         self.keys_held.clear()
 
         # --- Survival Mechanics ---
-        self.energy = 100.0
+        self.energy = 100.0                 # Max 100. Depletes at 1 point per 60 seconds
         self.max_food_percentage = 100.0
         self.food_percentage = 100.0
         self.energy_buffer = 0.0
-        self.healing_rate = 20.0
+        self.healing_rate = 5.0             # Processes 5 energy per second from the buffer
         self.invulnerable_timer = 0.0
         self.game_over = False
 
@@ -104,7 +104,17 @@ class SimpleRunner100(arcade.Window):
                     border_width=band_thickness + 2
                 )
 
-        # 4. Draw Player (2 blocks long vertically)
+        # 4. Low Energy Vignette (Replaced the Dialogue Box)
+        # Starts darkening when you have less than 15 energy (15 minutes) left
+        if self.energy < 15 and not self.game_over:
+            darkness = 1.0 - (max(self.energy, 0) / 15.0)
+            alpha = int(245 * darkness)
+            arcade.draw_rect_filled(
+                arcade.XYWH(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT),
+                (0, 0, 0, alpha)
+            )
+
+        # 5. Draw Player (2 blocks long vertically - Drawn LAST so it glows in the dark)
         if self.invulnerable_timer <= 0 or int(self.invulnerable_timer * 15) % 2 == 0:
             player_color = arcade.color.LIME_GREEN if self.in_current else arcade.color.CYAN
             arcade.draw_rect_filled(
@@ -112,34 +122,7 @@ class SimpleRunner100(arcade.Window):
                 player_color
             )
 
-        # 5. Low Energy Dialogue Box
-        if self.energy < 30 and not self.game_over:
-            box_width = 350
-            box_height = 70
-            box_x = WIDTH / 2
-            box_y = 60
-
-            # Draw semi-transparent dark background
-            arcade.draw_rect_filled(
-                arcade.XYWH(box_x, box_y, box_width, box_height),
-                (0, 0, 0, 220)
-            )
-            # Draw white border
-            arcade.draw_rect_outline(
-                arcade.XYWH(box_x, box_y, box_width, box_height),
-                arcade.color.WHITE,
-                border_width=2
-            )
-
-            # Draw the Speaker Name
-            arcade.draw_text("testperson", box_x - (box_width / 2) + 15, box_y + 15,
-                             arcade.color.GOLD, 14, bold=True)
-
-            # Draw the Dialogue Text
-            arcade.draw_text("I'm hungry...", box_x - (box_width / 2) + 25, box_y - 15,
-                             arcade.color.WHITE, 16, italic=True)
-
-        # 6. Draw UI (SCORE IS NOW HIDDEN)
+        # 6. Draw UI (SCORE IS HIDDEN)
         arcade.draw_text(f"FOOD: {self.food_percentage:.1f}% / {self.max_food_percentage:.1f}%",
                          15, HEIGHT - 35, arcade.color.ORANGE, 16, bold=True)
         arcade.draw_text("Press SPACE to eat", 15, HEIGHT - 55, arcade.color.GRAY, 12)
@@ -177,8 +160,8 @@ class SimpleRunner100(arcade.Window):
                 self.energy = 100.0
                 self.energy_buffer = 0.0
 
-        # --- Base Energy Depletion ---
-        self.energy -= (100.0 / 180.0) * delta_time
+        # --- Base Energy Depletion (1 point = 60 seconds) ---
+        self.energy -= (1.0 / 60.0) * delta_time
         if self.energy <= 0:
             self.game_over = True
 
@@ -210,8 +193,6 @@ class SimpleRunner100(arcade.Window):
             if self.current_active_speed < target_speed:
                 self.current_active_speed = target_speed
 
-        # The score increments continuously.
-        # (It takes about 83 seconds of normal driving to hit 5,000)
         self.score += (self.current_active_speed / FORWARD_SPEED)
 
         if self.player_x < self.player_target_x:
@@ -227,13 +208,11 @@ class SimpleRunner100(arcade.Window):
                 self.player_lane += 1
                 self.player_target_x = LANES[self.player_lane]
 
-        # --- Spawn Loop (ZONE LOGIC ADDED HERE) ---
+        # --- Spawn Loop (Zones 1 & 2) ---
         if self.spawn_timer >= SPAWN_RATE:
 
-            # Determine if we are in Zone 1 (Score < 5000) or Zone 2 (Score >= 5000)
             in_zone_1 = self.score < 5000
 
-            # Currents ONLY spawn if we are in Zone 2
             if not in_zone_1:
                 if len(self.currents) == 0 and random.random() < 0.40:
                     roll = random.random()
@@ -241,8 +220,7 @@ class SimpleRunner100(arcade.Window):
                     elif roll < 0.70: size = random.randint(4, 7)
                     else: size = random.randint(8, 10)
 
-                    # Base current speed halved to match the new global player speeds
-                    current_speed = 6.7 - (size * 0.2)
+                    current_speed = 4.0 - (size * 0.15)
                     start_lane = random.randint(0, NUM_LANES - size)
                     self.currents.append({
                         'start_lane': start_lane,
@@ -252,13 +230,11 @@ class SimpleRunner100(arcade.Window):
                         'height': CURRENT_HEIGHT
                     })
 
-            # Spawn Rock Clumps (Size depends on the Zone)
             num_clumps = random.randint(2, 5)
             for _ in range(num_clumps):
                 center_lane = random.randint(10, NUM_LANES - 11)
                 center_y = HEIGHT + random.randint(20, 100)
 
-                # Zone 1 gives tiny clumps (1-3). Zone 2 gives huge clumps (5-12).
                 if in_zone_1:
                     clump_size = random.randint(1, 3)
                 else:
@@ -326,6 +302,8 @@ class SimpleRunner100(arcade.Window):
                     food_to_eat = self.food_percentage
 
                 self.food_percentage -= food_to_eat
+
+                # 1% food eaten = exactly 1 point of energy (which equals 1 minute of survival)
                 self.energy_buffer += food_to_eat
 
     def on_key_release(self, key, modifiers):
