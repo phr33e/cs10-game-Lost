@@ -18,9 +18,9 @@ LERP_SPEED = 0.2
 SLOW_LERP_SPEED = 0.12
 ENERGY_MAX = 100
 ENERGY_PER_FOOD = 28
-INITIAL_FOOD = 11
+INITIAL_FOOD = 14
 AREA_ENERGY_BONUS = 5
-AREA_FOOD_BONUS = 1
+AREA_FOOD_BONUS = 2
 HORIZON_Y = 440
 NIGHT_START_TIME = 55.0
 NIGHT_FULL_TIME = 80.0
@@ -666,11 +666,11 @@ class RunnerGame(arcade.Window):
             if random.random() < 0.4:
                 self.spawn_tidal_wave()
 
-        pickup_chance = 0.04
+        pickup_chance = 0.06
         if self.area == 2:
-            pickup_chance = 0.07
+            pickup_chance = 0.1
         elif self.area >= 4:
-            pickup_chance = 0.05
+            pickup_chance = 0.08
 
         if random.random() < pickup_chance:
             self.spawn_food_pickup()
