@@ -42,6 +42,7 @@ STATE_INTRO = "intro"
 STATE_PLAYING = "playing"
 STATE_GAME_OVER = "game_over"
 STATE_AREA_TRANSITION = "area_transition"
+MIGRANT_DIALOGUE_KEY = arcade.key.T
 
 
 class Obstacle:
@@ -251,6 +252,11 @@ class RunnerGame(arcade.Window):
         self.food_pickups = []
         self.particles = arcade.SpriteList()
         self.keys_down = set()
+        self.dialogue_open = False
+        self.dialogue_entry_index = 0
+        self.dialogue_line_index = 0
+        self.dialogue_cooldown = 0.0
+        self.active_dialogue = None
 
         self.player_lane = NUM_LANES // 2
         self.target_x = LANES[self.player_lane]
@@ -277,10 +283,10 @@ class RunnerGame(arcade.Window):
         self.difficulty_multiplier = 1.0
 
         self.intro_text = [
-            "You are a sailor.",
-            "Your family is waiting for you in Italy.",
-            "You've been hired to guide a boat across the Mediterranean.",
-            "Food is your only visible resource.",
+            "You are on a small boat carrying migrants across the Mediterranean.",
+            "They are exhausted, scared, and hoping to reach safety in Italy.",
+            "Listen to their stories as the journey unfolds.",
+            "Food is your visible resource.",
             "A hidden stamina pool drains over time. Food restores it.",
             "Hit obstacles and your hidden stamina drops. Let it reach zero and the journey ends.",
             "Each level shows a different part of the crossing and what people face there.",
@@ -337,6 +343,110 @@ class RunnerGame(arcade.Window):
                 "speed_scale": 0.8,
             },
         ]
+        self.migrant_dialogues = [
+            [
+                {
+                    "speaker": "Amina",
+                    "lines": [
+                        "We left because staying meant waiting for violence to come back.",
+                        "I carried only my documents and a photo of my children.",
+                        "I keep telling myself this boat is the price of a safer morning.",
+                    ],
+                },
+                {
+                    "speaker": "Youssef",
+                    "lines": [
+                        "The journey starts long before the sea. It starts when there is no work, no safety, and no way forward at home.",
+                        "We crossed borders on foot before we ever saw water.",
+                    ],
+                },
+            ],
+            [
+                {
+                    "speaker": "Nadia",
+                    "lines": [
+                        "The sea makes every hour feel heavier.",
+                        "We drink slowly because every sip matters and nobody knows how long this will last.",
+                        "People get quiet when the waves rise, not because we do not care, but because we are trying to stay calm.",
+                    ],
+                },
+                {
+                    "speaker": "Salim",
+                    "lines": [
+                        "Some of us are sick, some are praying, and some are just staring at the horizon.",
+                        "It is strange how far hope can carry you when fear is still with you.",
+                    ],
+                },
+            ],
+            [
+                {
+                    "speaker": "Mariam",
+                    "lines": [
+                        "The route changes because the safest path is never really safe.",
+                        "People pay what they have to strangers who promise a crossing and leave us with uncertainty instead.",
+                        "One crowded boat can turn a desperate plan into a disaster in minutes.",
+                    ],
+                },
+                {
+                    "speaker": "Ibrahim",
+                    "lines": [
+                        "We are not choosing danger because we want adventure.",
+                        "We are choosing it because the alternatives were worse than the sea.",
+                    ],
+                },
+            ],
+            [
+                {
+                    "speaker": "Leila",
+                    "lines": [
+                        "When lights appear, everyone freezes.",
+                        "Being seen can mean being intercepted, turned back, or losing the chance we fought for.",
+                        "Even silence feels loud when you know someone is watching.",
+                    ],
+                },
+                {
+                    "speaker": "Farid",
+                    "lines": [
+                        "We are tired of hiding, but we learned very quickly that fear can follow you out here too.",
+                        "All we want is a place where our names do not have to be whispered.",
+                    ],
+                },
+            ],
+            [
+                {
+                    "speaker": "Amina",
+                    "lines": [
+                        "The hardest part is that land can be close and still feel far away.",
+                        "Everybody on this boat is thinking about different things: family, papers, food, and whether tomorrow is finally going to be different.",
+                        "We have been holding ourselves together for so long that even relief feels complicated.",
+                    ],
+                },
+                {
+                    "speaker": "Youssef",
+                    "lines": [
+                        "We are counting every minute now.",
+                        "Not because the journey is over, but because it has changed us and we need to believe the next part can be gentler.",
+                    ],
+                },
+            ],
+            [
+                {
+                    "speaker": "Nadia",
+                    "lines": [
+                        "Reaching shore does not erase what happened on the way here.",
+                        "Some of us will ask for asylum, some will call family, and some will just stand still because the body needs time to understand safety again.",
+                        "The sea stays inside you for a while.",
+                    ],
+                },
+                {
+                    "speaker": "Salim",
+                    "lines": [
+                        "We made it this far by carrying one another.",
+                        "That is the story I want people to remember: not only the crossing, but the reason we kept going.",
+                    ],
+                },
+            ],
+        ]
 
         self.setup()
 
@@ -375,6 +485,11 @@ class RunnerGame(arcade.Window):
         self.area = 1
         self.area_timer = 0.0
         self.difficulty_multiplier = 1.0
+        self.dialogue_open = False
+        self.dialogue_entry_index = 0
+        self.dialogue_line_index = 0
+        self.dialogue_cooldown = 0.0
+        self.active_dialogue = None
 
     def refresh_control_mode(self):
         """Set player control style based on the current area."""
@@ -554,6 +669,7 @@ class RunnerGame(arcade.Window):
         self.draw_boat()
 
         self.draw_energy_drain_overlay()
+        self.draw_migrant_dialogue()
 
         for particle in self.particles:
             arcade.draw_sprite(particle)
@@ -652,6 +768,16 @@ class RunnerGame(arcade.Window):
             font_size=10,
             anchor_x="center",
         )
+        if not self.dialogue_open and self.dialogue_entry_index < len(self.current_dialogue_group()):
+            dialogue_hint = "Press T to talk to the passengers"
+            arcade.draw_text(
+                dialogue_hint,
+                WIDTH // 2,
+                20,
+                color=arcade.color.LIGHT_GRAY,
+                font_size=10,
+                anchor_x="center",
+            )
 
     def draw_intro(self):
         """Draw introduction screen."""
@@ -880,6 +1006,78 @@ class RunnerGame(arcade.Window):
             anchor_x="center",
         )
 
+    def draw_migrant_dialogue(self):
+        """Draw the current migrant conversation as a boat-side overlay."""
+        if not self.dialogue_open and self.active_dialogue is None:
+            return
+
+        panel_left = 40
+        panel_right = WIDTH - 40
+        panel_bottom = 40
+        panel_top = 165
+
+        arcade.draw_rect_filled(
+            arcade.LRBT(left=panel_left, right=panel_right, bottom=panel_bottom, top=panel_top),
+            color=(10, 18, 30, 220),
+        )
+        arcade.draw_rect_outline(
+            arcade.LRBT(left=panel_left, right=panel_right, bottom=panel_bottom, top=panel_top),
+            color=(132, 202, 255),
+            border_width=2,
+        )
+
+        if self.active_dialogue is None:
+            arcade.draw_text(
+                "A passenger leans toward you.",
+                panel_left + 18,
+                panel_top - 32,
+                color=arcade.color.LIGHT_CYAN,
+                font_size=13,
+                bold=True,
+            )
+            arcade.draw_text(
+                "Press T to listen",
+                panel_left + 18,
+                panel_bottom + 18,
+                color=arcade.color.WHITE,
+                font_size=11,
+            )
+            return
+
+        speaker = self.active_dialogue["speaker"]
+        line = self.active_dialogue["lines"][self.dialogue_line_index]
+
+        arcade.draw_text(
+            f"{speaker} says:",
+            panel_left + 18,
+            panel_top - 32,
+            color=arcade.color.LIGHT_CYAN,
+            font_size=13,
+            bold=True,
+        )
+        arcade.draw_text(
+            line,
+            panel_left + 18,
+            panel_top - 68,
+            color=arcade.color.WHITE,
+            font_size=13,
+            width=panel_right - panel_left - 36,
+            multiline=True,
+        )
+
+        if self.dialogue_line_index < len(self.active_dialogue["lines"]) - 1:
+            footer = "Press T to continue"
+        else:
+            footer = "Press T to let them speak again later"
+
+        arcade.draw_text(
+            footer,
+            panel_left + 18,
+            panel_bottom + 18,
+            color=arcade.color.LIGHT_YELLOW,
+            font_size=11,
+        )
+
     def get_night_factor(self):
         """Return a 0-1 blend value for the day-to-night transition."""
         return max(
@@ -1079,6 +1277,11 @@ class RunnerGame(arcade.Window):
         elif self.state == STATE_AREA_TRANSITION:
             pass
         elif self.state == STATE_PLAYING:
+            if self.dialogue_cooldown > 0:
+                self.dialogue_cooldown = max(0.0, self.dialogue_cooldown - delta_time)
+            if self.dialogue_open:
+                self.update_particles()
+                return
             self.update_game(delta_time)
         elif self.state == STATE_GAME_OVER:
             self.update_particles()
@@ -1096,6 +1299,11 @@ class RunnerGame(arcade.Window):
             self.energy = min(ENERGY_MAX, self.energy + AREA_ENERGY_BONUS)
             self.food += AREA_FOOD_BONUS
             self.refresh_control_mode()
+            self.dialogue_open = False
+            self.dialogue_entry_index = 0
+            self.dialogue_line_index = 0
+            self.dialogue_cooldown = 0.0
+            self.active_dialogue = None
             self.state = STATE_AREA_TRANSITION
             return
 
@@ -1161,6 +1369,40 @@ class RunnerGame(arcade.Window):
         if self.energy <= 0:
             self.game_over_event()
 
+    def current_dialogue_group(self):
+        """Return the dialogue group for the current area."""
+        stage_index = min(self.area - 1, len(self.migrant_dialogues) - 1)
+        return self.migrant_dialogues[stage_index]
+
+    def open_dialogue(self):
+        """Open the next passenger dialogue if one is available."""
+        if self.dialogue_cooldown > 0 or self.dialogue_open:
+            return
+
+        group = self.current_dialogue_group()
+        if self.dialogue_entry_index >= len(group):
+            return
+
+        self.active_dialogue = group[self.dialogue_entry_index]
+        self.dialogue_line_index = 0
+        self.dialogue_open = True
+
+    def advance_dialogue(self):
+        """Advance or close the active passenger dialogue."""
+        if self.active_dialogue is None:
+            self.open_dialogue()
+            return
+
+        if self.dialogue_line_index < len(self.active_dialogue["lines"]) - 1:
+            self.dialogue_line_index += 1
+            return
+
+        self.dialogue_open = False
+        self.dialogue_cooldown = 1.25
+        self.dialogue_entry_index += 1
+        self.active_dialogue = None
+        self.dialogue_line_index = 0
+
     def update_free_movement(self, delta_time):
         """Move the boat freely in the later stages."""
         move_step = self.player_move_speed * delta_time
@@ -1219,8 +1461,13 @@ class RunnerGame(arcade.Window):
         elif self.state == STATE_AREA_TRANSITION:
             if key == arcade.key.SPACE:
                 self.state = STATE_PLAYING
+                self.open_dialogue()
 
         elif self.state == STATE_PLAYING:
+            if key == MIGRANT_DIALOGUE_KEY:
+                self.advance_dialogue()
+                return
+
             self.keys_down.add(key)
 
             if self.control_mode == "lane":
