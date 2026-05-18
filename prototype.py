@@ -17,23 +17,23 @@ PLAYER_SIZE = LANE_WIDTH - 12
 LERP_SPEED = 0.2
 SLOW_LERP_SPEED = 0.12
 ENERGY_MAX = 100
-ENERGY_PER_FOOD = 28
-INITIAL_FOOD = 11
-AREA_ENERGY_BONUS = 5
+ENERGY_PER_FOOD = 22
+INITIAL_FOOD = 8
+AREA_ENERGY_BONUS = 3
 AREA_FOOD_BONUS = 1
 HORIZON_Y = 440
 NIGHT_START_TIME = 55.0
 NIGHT_FULL_TIME = 80.0
-FREE_MOVE_SPEED = 180
-FREE_MOVE_SLOW_SPEED = 135
+FREE_MOVE_SPEED = 160
+FREE_MOVE_SLOW_SPEED = 120
 PLAYER_MIN_Y = 55
 PLAYER_MAX_Y = 205
-ENERGY_DRAIN_MIN_SECONDS = 72.0
-ENERGY_DRAIN_MAX_SECONDS = 145.0
-BASE_OBSTACLE_SPEED = 4.8
-OBSTACLE_SPEED_RAMP = 0.14
-BASE_SPAWN_INTERVAL = 1.08
-MIN_SPAWN_INTERVAL = 0.65
+ENERGY_DRAIN_MIN_SECONDS = 58.0
+ENERGY_DRAIN_MAX_SECONDS = 120.0
+BASE_OBSTACLE_SPEED = 5.4
+OBSTACLE_SPEED_RAMP = 0.18
+BASE_SPAWN_INTERVAL = 0.92
+MIN_SPAWN_INTERVAL = 0.5
 LOW_ENERGY_THRESHOLD = 0.35
 LOW_ENERGY_FULL_DARK = 0.08
 
@@ -252,6 +252,7 @@ class RunnerGame(arcade.Window):
         self.food_pickups = []
         self.particles = arcade.SpriteList()
         self.keys_down = set()
+        self.food_use_cooldown = 0.0
         self.dialogue_open = False
         self.dialogue_mode = None
         self.manual_dialogue_index = 0
@@ -284,6 +285,7 @@ class RunnerGame(arcade.Window):
         self.area_timer = 0.0
         self.area_lengths = [1500, 1800, 2000, 2200, 2500, 2800]
         self.difficulty_multiplier = 1.0
+        self.food_use_cooldown = 0.0
 
         self.intro_text = [
             "You are on a small boat carrying migrants across the Mediterranean.",
@@ -324,7 +326,7 @@ class RunnerGame(arcade.Window):
                 "explanation": "People on the move can face surveillance, interception, and the fear of being spotted when they are already exhausted.",
                 "focus": "Move carefully. Avoid attention and protect the supplies you still have.",
                 "movement": "free",
-                "boat_speed": 150,
+                "boat_speed": 135,
                 "speed_scale": 0.9,
             },
             {
@@ -333,7 +335,7 @@ class RunnerGame(arcade.Window):
                 "explanation": "The last leg is where patience and rationing pay off. The journey becomes a test of discipline as much as survival.",
                 "focus": "Keep your line, use Food only when you truly need it, and do not panic.",
                 "movement": "free",
-                "boat_speed": 130,
+                "boat_speed": 120,
                 "speed_scale": 0.85,
             },
             {
@@ -342,7 +344,7 @@ class RunnerGame(arcade.Window):
                 "explanation": "Arriving can mean safety, but it can also mean more waiting, more checks, and the emotional weight of everything left behind.",
                 "focus": "Hold on to the last of your supplies and bring the boat home.",
                 "movement": "free",
-                "boat_speed": 115,
+                "boat_speed": 108,
                 "speed_scale": 0.8,
             },
         ]
@@ -664,18 +666,18 @@ class RunnerGame(arcade.Window):
             if random.random() < 0.4:
                 self.spawn_tidal_wave()
 
-        pickup_chance = 0.06
+        pickup_chance = 0.04
         if self.area == 2:
-            pickup_chance = 0.1
-        elif self.area >= 4:
             pickup_chance = 0.07
+        elif self.area >= 4:
+            pickup_chance = 0.05
 
         if random.random() < pickup_chance:
             self.spawn_food_pickup()
 
     def spawn_basic_wave(self):
         """Spawn basic rocks."""
-        num_obstacles = random.randint(1, min(4, 1 + int(self.game_time // 18)))
+        num_obstacles = random.randint(1, min(4, 1 + int(self.game_time // 14)))
         lanes_to_use = random.sample(range(NUM_LANES), k=num_obstacles)
 
         for lane_idx in lanes_to_use:
@@ -695,10 +697,10 @@ class RunnerGame(arcade.Window):
         """Spawn faster obstacles."""
         if self.area == 2:
             num_obstacles = random.randint(1, 2)
-            speed_multiplier = 1.14
+            speed_multiplier = 1.22
         else:
-            num_obstacles = random.randint(2, 3)
-            speed_multiplier = 1.24
+            num_obstacles = random.randint(2, 4)
+            speed_multiplier = 1.34
         lanes_to_use = random.sample(range(NUM_LANES), k=num_obstacles)
 
         for lane_idx in lanes_to_use:
@@ -726,7 +728,7 @@ class RunnerGame(arcade.Window):
         available_lanes = max(8, NUM_LANES - int(self.area_timer // 2))
         lane_offset = (NUM_LANES - available_lanes) // 2
 
-        num_obstacles = random.randint(3, 5)
+        num_obstacles = random.randint(4, 6)
         valid_lanes = list(range(lane_offset)) + list(
             range(NUM_LANES - lane_offset, NUM_LANES)
         )
@@ -746,7 +748,7 @@ class RunnerGame(arcade.Window):
 
     def spawn_coastguard_wave(self):
         """Spawn coastguard boats or regular obstacles."""
-        if random.random() < 0.42:
+        if random.random() < 0.5:
             x = random.choice(LANES)
             obstacle = CoastguardObstacle(x, HEIGHT + 50)
             self.obstacle_list.append(obstacle)
@@ -1439,7 +1441,10 @@ class RunnerGame(arcade.Window):
         self.area_timer += delta_time
         self.energy -= self.energy_drain_rate * delta_time
 
-        if self.area < len(self.area_descriptions) and self.area_timer > 30:
+        if self.food_use_cooldown > 0:
+            self.food_use_cooldown = max(0.0, self.food_use_cooldown - delta_time)
+
+        if self.area < len(self.area_descriptions) and self.area_timer > 34:
             self.area += 1
             self.area_timer = 0
             self.energy = min(ENERGY_MAX, self.energy + AREA_ENERGY_BONUS)
@@ -1459,13 +1464,13 @@ class RunnerGame(arcade.Window):
         else:
             self.update_free_movement(delta_time)
 
-        self.obstacle_speed = BASE_OBSTACLE_SPEED + (self.game_time * OBSTACLE_SPEED_RAMP) + (self.area * 0.24)
+        self.obstacle_speed = BASE_OBSTACLE_SPEED + (self.game_time * OBSTACLE_SPEED_RAMP) + (self.area * 0.32)
         if self.area == 2:
-            self.obstacle_speed += 0.1
+            self.obstacle_speed += 0.2
         elif self.area >= 4:
-            self.obstacle_speed += 0.4
+            self.obstacle_speed += 0.65
 
-        spawn_rate = max(MIN_SPAWN_INTERVAL, BASE_SPAWN_INTERVAL - (self.game_time * 0.0055))
+        spawn_rate = max(MIN_SPAWN_INTERVAL, BASE_SPAWN_INTERVAL - (self.game_time * 0.007))
         self.spawn_timer += delta_time
         if self.spawn_timer >= spawn_rate:
             self.spawn_timer = 0.0
@@ -1501,7 +1506,7 @@ class RunnerGame(arcade.Window):
                 if isinstance(obstacle, CoastguardObstacle) and obstacle.spotted:
                     self.game_over_event()
                 else:
-                    self.energy -= 32
+                    self.energy -= 40
                     self.create_explosion(
                         self.player_sprite.center_x,
                         self.player_sprite.center_y,
@@ -1707,9 +1712,10 @@ class RunnerGame(arcade.Window):
                     self.player_lane += 1
                     self.target_x = LANES[self.player_lane]
 
-            if key == arcade.key.SPACE and self.food > 0:
+            if key == arcade.key.SPACE and self.food > 0 and self.food_use_cooldown <= 0:
                 self.energy = min(ENERGY_MAX, self.energy + ENERGY_PER_FOOD)
                 self.food -= 1
+                self.food_use_cooldown = 0.65
 
     def on_key_release(self, key, modifiers):
         """Track held keys for free movement."""
