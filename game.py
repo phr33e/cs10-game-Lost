@@ -51,7 +51,10 @@ class MediterraneanJourney(arcade.Window):
         self.player_target_x = LANES[self.player_lane]
         self.obstacles = []
         self.currents = []
+        self.coastguards = []
+
         self.in_current = False
+        self.in_rip_current = False
         self.current_active_speed = FORWARD_SPEED
         self.spawn_timer = 0
         self.score = 0
@@ -63,7 +66,6 @@ class MediterraneanJourney(arcade.Window):
         self.food_percentage = 100.0
         self.energy_buffer = 0.0
         self.healing_rate = 5.0
-        self.invulnerable_timer = 0.0
 
         # --- Engine Failure Mechanics ---
         self.engine_failure_chance = 0.01
@@ -74,6 +76,7 @@ class MediterraneanJourney(arcade.Window):
 
         self.game_over = False
         self.rescued = False
+        self.caught = False
 
         # --- Day / Night Cycle ---
         self.day_timer = 0.0
@@ -83,18 +86,23 @@ class MediterraneanJourney(arcade.Window):
     def on_draw(self):
         self.clear()
 
-        # 0. Draw background water lanes
+        # 0. Draw barely visible background water lanes
         for x in LANES:
-            arcade.draw_line(x, 0, x, HEIGHT, (15, 35, 75), 1)
+            # 5 out of 255 alpha makes it incredibly faint
+            arcade.draw_line(x, 0, x, HEIGHT, (255, 255, 255, 5), 1)
 
-        # 1. Draw Currents (Speed Lanes)
+        # 1. Draw Currents (Speed Lanes and Rip Currents)
         for curr in self.currents:
             width = curr['size'] * LANE_WIDTH
             center_x = (curr['start_lane'] * LANE_WIDTH) + (width / 2)
-            # Drawn as light blue and slightly transparent
+
+            if curr.get('is_rip', False):
+                color = (100, 180, 220, 70)
+            else:
+                color = (135, 206, 250, 80)
+
             arcade.draw_rect_filled(
-                arcade.XYWH(center_x, curr['y'], width, curr['height']),
-                (135, 206, 250, 80)
+                arcade.XYWH(center_x, curr['y'], width, curr['height']), color
             )
 
         # 2. Draw Obstacles
@@ -104,7 +112,15 @@ class MediterraneanJourney(arcade.Window):
                 arcade.color.DARK_GRAY
             )
 
-        # 3. Day/Night Cycle
+        # 3. Draw Coastguards
+        for cg in self.coastguards:
+            arcade.draw_rect_filled(arcade.XYWH(cg['x'], cg['y'], LANE_WIDTH * 4, LANE_WIDTH * 8), arcade.color.WHITE)
+            arcade.draw_rect_filled(arcade.XYWH(cg['x'], cg['y'] + 10, LANE_WIDTH * 4, 6), arcade.color.RED)
+
+            if cg['chasing'] and int(self.day_timer * 4) % 2 == 0:
+                arcade.draw_circle_outline(cg['x'], cg['y'], 20, arcade.color.RED, 2)
+
+        # 4. Day/Night Cycle & The Lantern Effect
         night_intensity = 0.0
         if self.day_timer > self.morning_duration:
             time_in_cycle = (self.day_timer - self.morning_duration) % (self.night_transition_speed * 2)
@@ -113,8 +129,12 @@ class MediterraneanJourney(arcade.Window):
             else:
                 night_intensity = 2.0 - (time_in_cycle / self.night_transition_speed)
 
-        if night_intensity > 0.01 and not self.game_over and not self.rescued:
-            current_fov = 1500.0 - (1300.0 * night_intensity)
+        if night_intensity > 0.01 and not self.game_over and not self.rescued and not self.caught:
+            # The lamp radius is exactly 5 blocks
+            lamp_radius = LANE_WIDTH * 5
+
+            # The darkness closes in until it perfectly matches the lamp radius
+            current_fov = 1500.0 - ((1500.0 - lamp_radius) * night_intensity)
             num_bands = 15
             max_radius = 2000
             band_thickness = (max_radius - current_fov) / num_bands
@@ -129,8 +149,16 @@ class MediterraneanJourney(arcade.Window):
                     border_width=band_thickness + 2
                 )
 
-        # 4. Low Energy Vignette
-        if self.energy < 15 and not self.game_over and not self.rescued:
+            # Draw the light yellow lantern glow under the boat
+            lamp_alpha = int(70 * night_intensity) # Fades in as night falls
+            arcade.draw_circle_filled(
+                self.player_x, PLAYER_Y,
+                lamp_radius,
+                (255, 255, 150, lamp_alpha)
+            )
+
+        # 5. Low Energy Vignette
+        if self.energy < 15 and not self.game_over and not self.rescued and not self.caught:
             darkness = 1.0 - (max(self.energy, 0) / 15.0)
             alpha = int(245 * darkness)
             arcade.draw_rect_filled(
@@ -138,27 +166,28 @@ class MediterraneanJourney(arcade.Window):
                 (0, 0, 0, alpha)
             )
 
-        # 5. Draw Pixelated Player Boat
-        if self.invulnerable_timer <= 0 or int(self.invulnerable_timer * 15) % 2 == 0:
-            pontoon_color = arcade.color.SLATE_GRAY
-            inside_color = arcade.color.BISTRE
+        # 6. Draw Pixelated Player Boat (No more blinking/invincibility)
+        pontoon_color = arcade.color.SLATE_GRAY
+        inside_color = arcade.color.BISTRE
 
-            if self.in_current:
-                pontoon_color = arcade.color.LIGHT_SKY_BLUE
-            if self.engine_failed:
-                pontoon_color = arcade.color.FIREBRICK
+        if self.in_current:
+            pontoon_color = arcade.color.LIGHT_SKY_BLUE
+        if self.in_rip_current:
+            pontoon_color = arcade.color.DARK_CYAN
+        if self.engine_failed:
+            pontoon_color = arcade.color.FIREBRICK
 
-            start_x = self.player_x - 3
-            start_y = PLAYER_Y + 7
+        start_x = self.player_x - 3
+        start_y = PLAYER_Y + 7
 
-            for row_idx, row_str in enumerate(BOAT_ART):
-                for col_idx, char in enumerate(row_str):
-                    if char == 'M':
-                        arcade.draw_rect_filled(arcade.XYWH(start_x + col_idx, start_y - row_idx, 1, 1), pontoon_color)
-                    elif char == 'D':
-                        arcade.draw_rect_filled(arcade.XYWH(start_x + col_idx, start_y - row_idx, 1, 1), inside_color)
+        for row_idx, row_str in enumerate(BOAT_ART):
+            for col_idx, char in enumerate(row_str):
+                if char == 'M':
+                    arcade.draw_rect_filled(arcade.XYWH(start_x + col_idx, start_y - row_idx, 1, 1), pontoon_color)
+                elif char == 'D':
+                    arcade.draw_rect_filled(arcade.XYWH(start_x + col_idx, start_y - row_idx, 1, 1), inside_color)
 
-        # 6. Draw UI
+        # 7. Draw UI
         arcade.draw_text(f"FOOD: {self.food_percentage:.1f}% / {self.max_food_percentage:.1f}%",
                          15, HEIGHT - 35, arcade.color.ORANGE, 16, bold=True)
         arcade.draw_text("Press SPACE to eat", 15, HEIGHT - 55, arcade.color.WHITE, 12)
@@ -169,15 +198,23 @@ class MediterraneanJourney(arcade.Window):
         if self.engine_failed:
             arcade.draw_text("ENGINE FAILURE - DRIFTING", 15, HEIGHT - 95, arcade.color.RED, 14, bold=True)
 
-        if self.in_current and not self.engine_failed:
+        if self.in_current and not self.engine_failed and not self.in_rip_current:
             multiplier = self.current_active_speed / FORWARD_SPEED
             arcade.draw_text(f"CURRENT CAUGHT! x{multiplier:.2f} SPD", WIDTH - 15, HEIGHT - 35,
                              arcade.color.LIGHT_SKY_BLUE, 16, anchor_x="right", bold=True)
+        elif self.in_rip_current and not self.engine_failed:
+            arcade.draw_text("TRAPPED IN RIP CURRENT!", WIDTH - 15, HEIGHT - 35,
+                             arcade.color.DARK_CYAN, 16, anchor_x="right", bold=True)
 
         # End States
         if self.rescued:
             arcade.draw_rect_filled(arcade.XYWH(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT), (0, 0, 0, 200))
             arcade.draw_text("LAMPEDUSA COAST SIGHTED. YOU SURVIVED.", WIDTH / 2, HEIGHT / 2, arcade.color.GOLD, 24, anchor_x="center", bold=True)
+            arcade.draw_text("Press ENTER to Restart", WIDTH / 2, HEIGHT / 2 - 40, arcade.color.WHITE, 20, anchor_x="center")
+
+        elif self.caught:
+            arcade.draw_rect_filled(arcade.XYWH(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT), (0, 0, 0, 230))
+            arcade.draw_text("INTERCEPTED BY COASTGUARD", WIDTH / 2, HEIGHT / 2, arcade.color.RED, 26, anchor_x="center", bold=True)
             arcade.draw_text("Press ENTER to Restart", WIDTH / 2, HEIGHT / 2 - 40, arcade.color.WHITE, 20, anchor_x="center")
 
         elif self.game_over:
@@ -186,7 +223,7 @@ class MediterraneanJourney(arcade.Window):
             arcade.draw_text("Press ENTER to Restart", WIDTH / 2, HEIGHT / 2 - 40, arcade.color.WHITE, 20, anchor_x="center")
 
     def on_update(self, delta_time):
-        if self.game_over or self.rescued:
+        if self.game_over or self.rescued or self.caught:
             return
 
         self.spawn_timer += 1
@@ -230,11 +267,9 @@ class MediterraneanJourney(arcade.Window):
         if self.energy <= 0:
             self.game_over = True
 
-        if self.invulnerable_timer > 0:
-            self.invulnerable_timer -= delta_time
-
         # --- Check Currents & Determine Target Speed ---
         self.in_current = False
+        self.in_rip_current = False
         target_speed = FORWARD_SPEED
 
         if self.engine_failed:
@@ -249,6 +284,8 @@ class MediterraneanJourney(arcade.Window):
                 if zone_left <= self.player_x <= zone_right and zone_bottom <= PLAYER_Y <= zone_top:
                     self.in_current = True
                     target_speed = curr['speed']
+                    if curr.get('is_rip', False):
+                        self.in_rip_current = True
                     break
 
         # --- Fade Speed ---
@@ -276,102 +313,148 @@ class MediterraneanJourney(arcade.Window):
                 self.player_lane += 1
                 self.player_target_x = LANES[self.player_lane]
 
-        # --- UPDATED GEOGRAPHICAL STAGES (Zones 1 to 5) ---
+        # --- GEOGRAPHICAL ZONES LOGIC ---
         if self.spawn_timer >= SPAWN_RATE:
 
             in_zone_1 = self.score <= 1500
             in_zone_2 = 1500 < self.score <= 5000
             in_zone_3 = 5000 < self.score <= 10000
-            in_zone_4 = 10000 < self.score <= 25000
-            in_zone_5 = self.score > 25000
+            in_zone_4 = 10000 < self.score <= 15000
+            in_zone_5 = 15001 < self.score <= 16000
+            in_zone_6 = self.score > 16000
 
-            # Currents trigger in Zone 3 and beyond
-            if not in_zone_1 and not in_zone_2:
+            # --- CURRENTS ---
+            if in_zone_3 or in_zone_4 or in_zone_5 or in_zone_6:
                 if len(self.currents) == 0 and random.random() < 0.40:
-                    roll = random.random()
-                    if roll < 0.30: size = random.randint(1, 3)
-                    elif roll < 0.70: size = random.randint(4, 7)
-                    else: size = random.randint(8, 10)
 
-                    # Speed boost is random between +0.2x and +0.5x
-                    speed_multiplier = 1.0 + random.uniform(0.2, 0.5)
-                    current_speed = FORWARD_SPEED * speed_multiplier
+                    is_rip = False
+                    if in_zone_4 and random.random() < 0.30:
+                        is_rip = True
+                        size = random.randint(15, 25)
+                        current_speed = FORWARD_SPEED * 0.2
+                        current_h = 8000
+                    else:
+                        roll = random.random()
+                        if roll < 0.30: size = random.randint(1, 3)
+                        elif roll < 0.70: size = random.randint(4, 7)
+                        else: size = random.randint(8, 10)
+                        speed_multiplier = 1.0 + random.uniform(0.2, 0.5)
+                        current_speed = FORWARD_SPEED * speed_multiplier
+                        current_h = CURRENT_HEIGHT
 
                     start_lane = random.randint(0, NUM_LANES - size)
                     self.currents.append({
                         'start_lane': start_lane,
                         'size': size,
                         'speed': current_speed,
-                        'y': HEIGHT + (CURRENT_HEIGHT / 2),
-                        'height': CURRENT_HEIGHT
+                        'y': HEIGHT + (current_h / 2),
+                        'height': current_h,
+                        'is_rip': is_rip
                     })
 
-            # Determine rock clustering by Zone
+            # --- OBSTACLES ---
+            spawn_obstacles = True
             if in_zone_1:
                 num_clumps = 0
                 base_clump_size = (0, 0)
+                spawn_obstacles = False
             elif in_zone_2:
-                # Limit total rocks on screen to a maximum of 5
                 if len(self.obstacles) < 5:
                     num_clumps = 1
                     base_clump_size = (1, 2)
                 else:
-                    num_clumps = 0
-                    base_clump_size = (0, 0)
-            elif in_zone_3:
+                    spawn_obstacles = False
+            elif in_zone_3 or in_zone_5:
                 num_clumps = random.randint(2, 4)
                 base_clump_size = (3, 6)
             elif in_zone_4:
-                num_clumps = random.randint(4, 7)
-                base_clump_size = (6, 12)
-            else: # Zone 5
+                if random.random() < 0.3:
+                    num_clumps = 1
+                    base_clump_size = (40, 60)
+                else:
+                    spawn_obstacles = False
+            else:
                 num_clumps = random.randint(6, 10)
                 base_clump_size = (8, 15)
 
-            for _ in range(num_clumps):
-                center_lane = random.randint(10, NUM_LANES - 11)
-                center_y = HEIGHT + random.randint(20, 100)
-                clump_size = random.randint(base_clump_size[0], base_clump_size[1])
+            if spawn_obstacles:
+                for _ in range(num_clumps):
+                    center_lane = random.randint(10, NUM_LANES - 11)
+                    center_y = HEIGHT + random.randint(20, 100)
+                    clump_size = random.randint(base_clump_size[0], base_clump_size[1])
 
-                for _ in range(clump_size):
-                    lane_offset = random.randint(-5, 5)
-                    y_offset = random.randint(-50, 50)
+                    offset_range = 25 if in_zone_4 else 5
 
-                    lane_idx = center_lane + lane_offset
-                    if 0 <= lane_idx < NUM_LANES:
-                        self.obstacles.append([LANES[lane_idx], center_y + y_offset])
+                    for _ in range(clump_size):
+                        lane_offset = random.randint(-offset_range, offset_range)
+                        y_offset = random.randint(-50, 50)
+
+                        lane_idx = center_lane + lane_offset
+                        if 0 <= lane_idx < NUM_LANES:
+                            self.obstacles.append([LANES[lane_idx], center_y + y_offset])
+
+            # --- COASTGUARD ---
+            if in_zone_5 and len(self.coastguards) == 0:
+                if random.random() < 0.2:
+                    self.coastguards.append({
+                        'x': LANES[random.randint(10, NUM_LANES - 11)],
+                        'y': HEIGHT + 400,
+                        'chasing': False
+                    })
 
             self.spawn_timer = 0
 
+        # Move currents
         for curr in self.currents[:]:
             curr['y'] -= self.current_active_speed
             if curr['y'] + (curr['height'] / 2) < 0:
                 self.currents.remove(curr)
 
+        # Update Coastguards
+        for cg in self.coastguards[:]:
+            vis_radius_x = 10 * LANE_WIDTH
+            vis_radius_y = 10 * LANE_WIDTH * 2
+
+            if abs(self.player_x - cg['x']) <= vis_radius_x and abs(PLAYER_Y - cg['y']) <= vis_radius_y:
+                cg['chasing'] = True
+
+            if cg['chasing']:
+                if cg['x'] < self.player_x: cg['x'] += SLIDE_SPEED * 1.5
+                if cg['x'] > self.player_x: cg['x'] -= SLIDE_SPEED * 1.5
+
+                if cg['y'] > PLAYER_Y: cg['y'] -= ((FORWARD_SPEED * 1.1) + self.current_active_speed)
+                if cg['y'] < PLAYER_Y: cg['y'] += (FORWARD_SPEED * 1.1)
+            else:
+                cg['y'] -= self.current_active_speed
+
+            if abs(self.player_x - cg['x']) < 15 and abs(PLAYER_Y - cg['y']) < 15:
+                self.caught = True
+
+            if cg['y'] < -200:
+                self.coastguards.remove(cg)
+
+        # Move and check obstacles
         for obs in self.obstacles[:]:
             obs[1] -= self.current_active_speed
 
-            if self.invulnerable_timer <= 0:
-                if abs(self.player_x - obs[0]) < 6 and abs(obs[1] - PLAYER_Y) < 10:
-                    self.energy -= 70.0
+            # --- Unforgiving Collision (No I-Frames) ---
+            if abs(self.player_x - obs[0]) < 6 and abs(obs[1] - PLAYER_Y) < 10:
+                self.energy -= 70.0
+                self.engine_failure_chance += 0.05
 
-                    self.engine_failure_chance += 0.05
+                capacity_loss_percent = random.uniform(0.15, 0.45)
+                self.max_food_percentage *= (1.0 - capacity_loss_percent)
+                if self.food_percentage > self.max_food_percentage:
+                    self.food_percentage = self.max_food_percentage
 
-                    capacity_loss_percent = random.uniform(0.15, 0.45)
-                    self.max_food_percentage *= (1.0 - capacity_loss_percent)
-
-                    if self.food_percentage > self.max_food_percentage:
-                        self.food_percentage = self.max_food_percentage
-
-                    self.invulnerable_timer = 1.0
-                    self.obstacles.remove(obs)
-                    continue
+                self.obstacles.remove(obs)
+                continue
 
             if obs[1] < -20:
                 self.obstacles.remove(obs)
 
     def on_key_press(self, key, modifiers):
-        if self.game_over or self.rescued:
+        if self.game_over or self.rescued or self.caught:
             if key == arcade.key.ENTER:
                 self.reset()
             return
@@ -398,7 +481,6 @@ class MediterraneanJourney(arcade.Window):
 
     def on_key_release(self, key, modifiers):
         self.keys_held.discard(key)
-
 
 if __name__ == "__main__":
     MediterraneanJourney()
