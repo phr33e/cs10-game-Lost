@@ -348,118 +348,238 @@ class RunnerGame(arcade.Window):
         ]
         self.migrant_dialogues = [
             {
-                "manual": {
-                    "speaker": "Amina",
-                    "trigger_distance": 90,
-                    "lines": [
-                        "We left because staying meant waiting for violence to come back.",
-                        "I carried only my documents and a photo of my children.",
-                        "I keep telling myself this boat is the price of a safer morning.",
-                    ],
-                },
-                "auto": {
-                    "speaker": "Youssef",
-                    "trigger_distance": 240,
-                    "lines": [
-                        "The journey starts long before the sea. It starts when there is no work, no safety, and no way forward at home.",
-                        "We crossed borders on foot before we ever saw water.",
-                    ],
-                },
+                "manual": [
+                    {
+                        "speaker": "Amina",
+                        "trigger_distance": 70,
+                        "lines": [
+                            "We left because staying meant waiting for violence to come back.",
+                            "I carried only my documents and a photo of my children.",
+                            "I keep telling myself this boat is the price of a safer morning.",
+                        ],
+                    },
+                    {
+                        "speaker": "Khalid",
+                        "trigger_distance": 180,
+                        "lines": [
+                            "Before the sea, there were months of planning and fear.",
+                            "You do not cross like this unless home has already stopped feeling safe.",
+                        ],
+                    },
+                ],
+                "auto": [
+                    {
+                        "speaker": "Youssef",
+                        "trigger_distance": 130,
+                        "lines": [
+                            "The journey starts long before the sea. It starts when there is no work, no safety, and no way forward at home.",
+                            "We crossed borders on foot before we ever saw water.",
+                        ],
+                    },
+                    {
+                        "speaker": "Mina",
+                        "trigger_distance": 255,
+                        "lines": [
+                            "Everybody on this boat has left something behind.",
+                            "Even the ones who look calm are carrying whole lives in their heads.",
+                        ],
+                    },
+                ],
             },
             {
-                "manual": {
-                    "speaker": "Nadia",
-                    "trigger_distance": 100,
-                    "lines": [
-                        "The sea makes every hour feel heavier.",
-                        "We drink slowly because every sip matters and nobody knows how long this will last.",
-                        "People get quiet when the waves rise, not because we do not care, but because we are trying to stay calm.",
-                    ],
-                },
-                "auto": {
-                    "speaker": "Salim",
-                    "trigger_distance": 230,
-                    "lines": [
-                        "Some of us are sick, some are praying, and some are just staring at the horizon.",
-                        "It is strange how far hope can carry you when fear is still with you.",
-                    ],
-                },
+                "manual": [
+                    {
+                        "speaker": "Nadia",
+                        "trigger_distance": 80,
+                        "lines": [
+                            "The sea makes every hour feel heavier.",
+                            "We drink slowly because every sip matters and nobody knows how long this will last.",
+                            "People get quiet when the waves rise, not because we do not care, but because we are trying to stay calm.",
+                        ],
+                    },
+                    {
+                        "speaker": "Hassan",
+                        "trigger_distance": 190,
+                        "lines": [
+                            "People think the sea is the danger, but hunger and exhaustion travel with us too.",
+                            "You feel both at once, and neither one is easy to ignore.",
+                        ],
+                    },
+                ],
+                "auto": [
+                    {
+                        "speaker": "Salim",
+                        "trigger_distance": 140,
+                        "lines": [
+                            "Some of us are sick, some are praying, and some are just staring at the horizon.",
+                            "It is strange how far hope can carry you when fear is still with you.",
+                        ],
+                    },
+                    {
+                        "speaker": "Mariam",
+                        "trigger_distance": 250,
+                        "lines": [
+                            "When the boat rocks, everyone starts holding their breath at the same time.",
+                            "You can almost hear people counting the minutes in their heads.",
+                        ],
+                    },
+                ],
             },
             {
-                "manual": {
-                    "speaker": "Mariam",
-                    "trigger_distance": 90,
-                    "lines": [
-                        "The route changes because the safest path is never really safe.",
-                        "People pay what they have to strangers who promise a crossing and leave us with uncertainty instead.",
-                        "One crowded boat can turn a desperate plan into a disaster in minutes.",
-                    ],
-                },
-                "auto": {
-                    "speaker": "Ibrahim",
-                    "trigger_distance": 220,
-                    "lines": [
-                        "We are not choosing danger because we want adventure.",
-                        "We are choosing it because the alternatives were worse than the sea.",
-                    ],
-                },
+                "manual": [
+                    {
+                        "speaker": "Mariam",
+                        "trigger_distance": 75,
+                        "lines": [
+                            "The route changes because the safest path is never really safe.",
+                            "People pay what they have to strangers who promise a crossing and leave us with uncertainty instead.",
+                            "One crowded boat can turn a desperate plan into a disaster in minutes.",
+                        ],
+                    },
+                    {
+                        "speaker": "Farid",
+                        "trigger_distance": 170,
+                        "lines": [
+                            "If we had other choices, we would not be here.",
+                            "The sea is the last place people go when every other door has closed.",
+                        ],
+                    },
+                ],
+                "auto": [
+                    {
+                        "speaker": "Ibrahim",
+                        "trigger_distance": 135,
+                        "lines": [
+                            "We are not choosing danger because we want adventure.",
+                            "We are choosing it because the alternatives were worse than the sea.",
+                        ],
+                    },
+                    {
+                        "speaker": "Leila",
+                        "trigger_distance": 245,
+                        "lines": [
+                            "The boat feels smaller when everyone starts talking about what could go wrong.",
+                            "Still, staying quiet can feel even scarier.",
+                        ],
+                    },
+                ],
             },
             {
-                "manual": {
-                    "speaker": "Leila",
-                    "trigger_distance": 80,
-                    "lines": [
-                        "When lights appear, everyone freezes.",
-                        "Being seen can mean being intercepted, turned back, or losing the chance we fought for.",
-                        "Even silence feels loud when you know someone is watching.",
-                    ],
-                },
-                "auto": {
-                    "speaker": "Farid",
-                    "trigger_distance": 210,
-                    "lines": [
-                        "We are tired of hiding, but we learned very quickly that fear can follow you out here too.",
-                        "All we want is a place where our names do not have to be whispered.",
-                    ],
-                },
+                "manual": [
+                    {
+                        "speaker": "Leila",
+                        "trigger_distance": 70,
+                        "lines": [
+                            "When lights appear, everyone freezes.",
+                            "Being seen can mean being intercepted, turned back, or losing the chance we fought for.",
+                            "Even silence feels loud when you know someone is watching.",
+                        ],
+                    },
+                    {
+                        "speaker": "Omar",
+                        "trigger_distance": 165,
+                        "lines": [
+                            "We watch the shore and the sky at the same time now.",
+                            "Hope and fear both get sharper when land is near.",
+                        ],
+                    },
+                ],
+                "auto": [
+                    {
+                        "speaker": "Farid",
+                        "trigger_distance": 130,
+                        "lines": [
+                            "We are tired of hiding, but we learned very quickly that fear can follow you out here too.",
+                            "All we want is a place where our names do not have to be whispered.",
+                        ],
+                    },
+                    {
+                        "speaker": "Nadia",
+                        "trigger_distance": 240,
+                        "lines": [
+                            "Every shadow can look like danger when you have spent too long running.",
+                            "Even the quiet sounds different out here.",
+                        ],
+                    },
+                ],
             },
             {
-                "manual": {
-                    "speaker": "Amina",
-                    "trigger_distance": 80,
-                    "lines": [
-                        "The hardest part is that land can be close and still feel far away.",
-                        "Everybody on this boat is thinking about different things: family, papers, food, and whether tomorrow is finally going to be different.",
-                        "We have been holding ourselves together for so long that even relief feels complicated.",
-                    ],
-                },
-                "auto": {
-                    "speaker": "Youssef",
-                    "trigger_distance": 200,
-                    "lines": [
-                        "We are counting every minute now.",
-                        "Not because the journey is over, but because it has changed us and we need to believe the next part can be gentler.",
-                    ],
-                },
+                "manual": [
+                    {
+                        "speaker": "Amina",
+                        "trigger_distance": 70,
+                        "lines": [
+                            "The hardest part is that land can be close and still feel far away.",
+                            "Everybody on this boat is thinking about different things: family, papers, food, and whether tomorrow is finally going to be different.",
+                            "We have been holding ourselves together for so long that even relief feels complicated.",
+                        ],
+                    },
+                    {
+                        "speaker": "Rami",
+                        "trigger_distance": 155,
+                        "lines": [
+                            "Getting close does not make the fear disappear.",
+                            "It just changes what the fear is about.",
+                        ],
+                    },
+                ],
+                "auto": [
+                    {
+                        "speaker": "Youssef",
+                        "trigger_distance": 120,
+                        "lines": [
+                            "We are counting every minute now.",
+                            "Not because the journey is over, but because it has changed us and we need to believe the next part can be gentler.",
+                        ],
+                    },
+                    {
+                        "speaker": "Mina",
+                        "trigger_distance": 230,
+                        "lines": [
+                            "No one stops being tired just because the shore is there.",
+                            "But everybody starts hoping a little harder.",
+                        ],
+                    },
+                ],
             },
             {
-                "manual": {
-                    "speaker": "Nadia",
-                    "trigger_distance": 70,
-                    "lines": [
-                        "Reaching shore does not erase what happened on the way here.",
-                        "Some of us will ask for asylum, some will call family, and some will just stand still because the body needs time to understand safety again.",
-                        "The sea stays inside you for a while.",
-                    ],
-                },
-                "auto": {
-                    "speaker": "Salim",
-                    "trigger_distance": 190,
-                    "lines": [
-                        "We made it this far by carrying one another.",
-                        "That is the story I want people to remember: not only the crossing, but the reason we kept going.",
-                    ],
-                },
+                "manual": [
+                    {
+                        "speaker": "Nadia",
+                        "trigger_distance": 60,
+                        "lines": [
+                            "Reaching shore does not erase what happened on the way here.",
+                            "Some of us will ask for asylum, some will call family, and some will just stand still because the body needs time to understand safety again.",
+                            "The sea stays inside you for a while.",
+                        ],
+                    },
+                    {
+                        "speaker": "Salim",
+                        "trigger_distance": 140,
+                        "lines": [
+                            "When this ends, the story does not end with it.",
+                            "What happens next is another kind of crossing.",
+                        ],
+                    },
+                ],
+                "auto": [
+                    {
+                        "speaker": "Mariam",
+                        "trigger_distance": 110,
+                        "lines": [
+                            "We made it this far by carrying one another.",
+                            "That is the story I want people to remember: not only the crossing, but the reason we kept going.",
+                        ],
+                    },
+                    {
+                        "speaker": "Amina",
+                        "trigger_distance": 225,
+                        "lines": [
+                            "Even after land, everybody is still listening for the sea inside their own chest.",
+                            "Some feelings take longer to arrive than the boat does.",
+                        ],
+                    },
+                ],
             },
         ]
 
