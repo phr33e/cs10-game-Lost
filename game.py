@@ -10,9 +10,9 @@ HEIGHT = 600
 # Player position
 PLAYER_Y = HEIGHT // 2  # Middle of the screen
 
-# Speed settings
-SLIDE_SPEED = 0.8
-FORWARD_SPEED = 3.5
+# Speed settings (Halved per instructions)
+SLIDE_SPEED = 0.4      # Was 0.8
+FORWARD_SPEED = 1.75   # Was 3.5
 
 # Spacing & Current settings
 SPAWN_RATE = 90
@@ -51,8 +51,8 @@ class SimpleRunner100(arcade.Window):
 
         # --- Day / Night Cycle ---
         self.day_timer = 0.0
-        self.morning_duration = 180.0       # 3 full minutes of pure daylight
-        self.night_transition_speed = 1200.0 # Takes 20 minutes (20x slower) to reach peak night
+        self.morning_duration = 180.0
+        self.night_transition_speed = 1200.0
 
     def on_draw(self):
         self.clear()
@@ -104,21 +104,20 @@ class SimpleRunner100(arcade.Window):
                     border_width=band_thickness + 2
                 )
 
-        # 4. Draw Player (Now 2 blocks long vertically)
+        # 4. Draw Player (2 blocks long vertically)
         if self.invulnerable_timer <= 0 or int(self.invulnerable_timer * 15) % 2 == 0:
             player_color = arcade.color.LIME_GREEN if self.in_current else arcade.color.CYAN
             arcade.draw_rect_filled(
-                # Height is now (LANE_WIDTH * 2) - 2
                 arcade.XYWH(self.player_x, PLAYER_Y, LANE_WIDTH - 2, (LANE_WIDTH * 2) - 2),
                 player_color
             )
 
-        # 5. Low Energy Dialogue Box (Smaller and Sleeker)
+        # 5. Low Energy Dialogue Box
         if self.energy < 30 and not self.game_over:
             box_width = 350
             box_height = 70
             box_x = WIDTH / 2
-            box_y = 60  # Shifted lower to match the smaller size
+            box_y = 60
 
             # Draw semi-transparent dark background
             arcade.draw_rect_filled(
@@ -140,15 +139,13 @@ class SimpleRunner100(arcade.Window):
             arcade.draw_text("I'm hungry...", box_x - (box_width / 2) + 25, box_y - 15,
                              arcade.color.WHITE, 16, italic=True)
 
-        # 6. Draw UI
-        arcade.draw_text(f"SCORE: {int(self.score)}", 15, HEIGHT - 35, arcade.color.WHITE, 16)
-
+        # 6. Draw UI (SCORE IS NOW HIDDEN)
         arcade.draw_text(f"FOOD: {self.food_percentage:.1f}% / {self.max_food_percentage:.1f}%",
-                         15, HEIGHT - 60, arcade.color.ORANGE, 16, bold=True)
-        arcade.draw_text("Press SPACE to eat", 15, HEIGHT - 80, arcade.color.GRAY, 12)
+                         15, HEIGHT - 35, arcade.color.ORANGE, 16, bold=True)
+        arcade.draw_text("Press SPACE to eat", 15, HEIGHT - 55, arcade.color.GRAY, 12)
 
         if self.energy_buffer > 0:
-            arcade.draw_text("REPLENISHING...", 15, HEIGHT - 100, arcade.color.YELLOW, 12, bold=True)
+            arcade.draw_text("REPLENISHING...", 15, HEIGHT - 75, arcade.color.YELLOW, 12, bold=True)
 
         if self.in_current:
             multiplier = self.current_active_speed / FORWARD_SPEED
@@ -198,7 +195,6 @@ class SimpleRunner100(arcade.Window):
             zone_bottom = curr['y'] - curr['height'] / 2
             zone_top = curr['y'] + curr['height'] / 2
 
-            # Checking against the player's center Y position
             if zone_left <= self.player_x <= zone_right and zone_bottom <= PLAYER_Y <= zone_top:
                 self.in_current = True
                 target_speed = curr['speed']
@@ -214,6 +210,8 @@ class SimpleRunner100(arcade.Window):
             if self.current_active_speed < target_speed:
                 self.current_active_speed = target_speed
 
+        # The score increments continuously.
+        # (It takes about 83 seconds of normal driving to hit 5,000)
         self.score += (self.current_active_speed / FORWARD_SPEED)
 
         if self.player_x < self.player_target_x:
@@ -229,29 +227,42 @@ class SimpleRunner100(arcade.Window):
                 self.player_lane += 1
                 self.player_target_x = LANES[self.player_lane]
 
-        # --- Spawn Loop ---
+        # --- Spawn Loop (ZONE LOGIC ADDED HERE) ---
         if self.spawn_timer >= SPAWN_RATE:
-            if len(self.currents) == 0 and random.random() < 0.40:
-                roll = random.random()
-                if roll < 0.30: size = random.randint(1, 3)
-                elif roll < 0.70: size = random.randint(4, 7)
-                else: size = random.randint(8, 10)
 
-                current_speed = 13.4 - (size * 0.4)
-                start_lane = random.randint(0, NUM_LANES - size)
-                self.currents.append({
-                    'start_lane': start_lane,
-                    'size': size,
-                    'speed': current_speed,
-                    'y': HEIGHT + (CURRENT_HEIGHT / 2),
-                    'height': CURRENT_HEIGHT
-                })
+            # Determine if we are in Zone 1 (Score < 5000) or Zone 2 (Score >= 5000)
+            in_zone_1 = self.score < 5000
 
+            # Currents ONLY spawn if we are in Zone 2
+            if not in_zone_1:
+                if len(self.currents) == 0 and random.random() < 0.40:
+                    roll = random.random()
+                    if roll < 0.30: size = random.randint(1, 3)
+                    elif roll < 0.70: size = random.randint(4, 7)
+                    else: size = random.randint(8, 10)
+
+                    # Base current speed halved to match the new global player speeds
+                    current_speed = 6.7 - (size * 0.2)
+                    start_lane = random.randint(0, NUM_LANES - size)
+                    self.currents.append({
+                        'start_lane': start_lane,
+                        'size': size,
+                        'speed': current_speed,
+                        'y': HEIGHT + (CURRENT_HEIGHT / 2),
+                        'height': CURRENT_HEIGHT
+                    })
+
+            # Spawn Rock Clumps (Size depends on the Zone)
             num_clumps = random.randint(2, 5)
             for _ in range(num_clumps):
                 center_lane = random.randint(10, NUM_LANES - 11)
                 center_y = HEIGHT + random.randint(20, 100)
-                clump_size = random.randint(5, 12)
+
+                # Zone 1 gives tiny clumps (1-3). Zone 2 gives huge clumps (5-12).
+                if in_zone_1:
+                    clump_size = random.randint(1, 3)
+                else:
+                    clump_size = random.randint(5, 12)
 
                 for _ in range(clump_size):
                     lane_offset = random.randint(-4, 4)
@@ -275,13 +286,9 @@ class SimpleRunner100(arcade.Window):
 
             # --- Collision detection ---
             if self.invulnerable_timer <= 0:
-                # Collision logic updated to match the new taller 2-block hitbox
-                # Player width is 8 (+/- 4), Obstacle width is 8 (+/- 4) -> gap < 8
-                # Player height is 18 (+/- 9), Obstacle height is 8 (+/- 4) -> gap < 13
                 if abs(self.player_x - obs[0]) < 8 and abs(obs[1] - PLAYER_Y) < 13:
                     self.energy -= 70.0
 
-                    # Randomize the max food capacity loss (between 15% and 45%)
                     capacity_loss_percent = random.uniform(0.15, 0.45)
                     self.max_food_percentage *= (1.0 - capacity_loss_percent)
 
