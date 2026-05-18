@@ -22,63 +22,104 @@ class SimpleRunner100(arcade.Window):
     def __init__(self):
         super().__init__(WIDTH, HEIGHT, "100-Lane Currents MVP")
         arcade.set_background_color(arcade.color.BLACK)
-        self.keys_held = set()  # Track which keys are currently pressed
+        self.keys_held = set()
         self.reset()
 
     def reset(self):
         self.player_lane = NUM_LANES // 2  # Start in the middle
         self.player_x = LANES[self.player_lane]
         self.player_target_x = LANES[self.player_lane]
-        self.obstacles = []  # Stores [x, y] coordinates
-        self.currents = []  # Stores active currents
+        self.obstacles = []
+        self.currents = []
         self.in_current = False
         self.current_active_speed = FORWARD_SPEED
         self.spawn_timer = 0
         self.score = 0
-        self.keys_held.clear()  # Clear held keys on reset
+        self.keys_held.clear()
+
+        # --- Survival Mechanics ---
+        self.energy = 100.0          # Max 100, depletes over 3 minutes (180 seconds)
+        self.max_food_capacity = 5.0 # Max capacity, starts at 5
+        self.food_count = 5          # Current amount of food
+        self.invulnerable_timer = 0.0 # I-frames so you don't get hit by 3 rocks at once
+        self.game_over = False
 
     def on_draw(self):
         self.clear()
 
-        # 1. Draw Currents (drawn first so they sit behind player/obstacles)
+        # 0. Draw faint lanes (barely visible)
+        for x in LANES:
+            arcade.draw_line(x, 0, x, HEIGHT, (25, 25, 25, 60), 1)
+
+        # 1. Draw Currents
         for curr in self.currents:
             width = curr['size'] * LANE_WIDTH
             center_x = (curr['start_lane'] * LANE_WIDTH) + (width / 2)
-            # Draw semi-transparent glowing green runway
             arcade.draw_rect_filled(
                 arcade.XYWH(center_x, curr['y'], width, curr['height']),
-                (46, 204, 113, 80)  # Green with transparency
+                (46, 204, 113, 80)
             )
 
-        # 2. Draw Player (Cyan normally, Neon Green when in a current)
-        player_color = arcade.color.LIME_GREEN if self.in_current else arcade.color.CYAN
-        arcade.draw_rect_filled(
-            arcade.XYWH(self.player_x, 80, LANE_WIDTH - 2, LANE_WIDTH - 2),
-            player_color
-        )
+        # 2. Draw Player (Blinks if invulnerable after getting hit)
+        if self.invulnerable_timer <= 0 or int(self.invulnerable_timer * 15) % 2 == 0:
+            player_color = arcade.color.LIME_GREEN if self.in_current else arcade.color.CYAN
+            arcade.draw_rect_filled(
+                arcade.XYWH(self.player_x, 80, LANE_WIDTH - 2, LANE_WIDTH - 2),
+                player_color
+            )
 
-        # 3. Draw Obstacles (Red rectangles)
+        # 3. Draw Obstacles (Dark Gray to look like Rocks)
         for obs in self.obstacles:
             arcade.draw_rect_filled(
-                arcade.XYWH(obs[0], obs[1], LANE_WIDTH - 2, 20),
-                arcade.color.RED
+                arcade.XYWH(obs[0], obs[1], LANE_WIDTH - 2, LANE_WIDTH - 2),
+                arcade.color.DARK_GRAY
             )
 
-        # 4. Draw Score and Current Status
+        # 4. Low Energy Vignette Effect
+        if self.energy < 30 and not self.game_over:
+            # Progressively darkens as energy gets closer to 0
+            darkness = 1.0 - (max(self.energy, 0) / 30.0)
+            alpha = int(245 * darkness) # Caps at 245 (almost pitch black)
+            arcade.draw_rect_filled(
+                arcade.XYWH(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT),
+                (0, 0, 0, alpha)
+            )
+
+        # 5. Draw UI (Energy is explicitly hidden per instructions)
         arcade.draw_text(f"SCORE: {int(self.score)}", 15, HEIGHT - 35, arcade.color.WHITE, 16)
 
+        # Display food status
+        arcade.draw_text(f"FOOD: {self.food_count} / {int(self.max_food_capacity)}",
+                         15, HEIGHT - 60, arcade.color.ORANGE, 16, bold=True)
+        arcade.draw_text("Press SPACE to eat", 15, HEIGHT - 80, arcade.color.GRAY, 12)
+
         if self.in_current:
-            # Show the multiplier relative to normal forward speed
             multiplier = self.current_active_speed / FORWARD_SPEED
             arcade.draw_text(f"IN CURRENT! x{multiplier:.1f} SPD", WIDTH - 15, HEIGHT - 35,
                              arcade.color.LIME_GREEN, 16, anchor_x="right", bold=True)
 
+        if self.game_over:
+            arcade.draw_rect_filled(arcade.XYWH(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT), arcade.color.BLACK)
+            arcade.draw_text("ENERGY DEPLETED - GAME OVER", WIDTH / 2, HEIGHT / 2, arcade.color.RED, 30, anchor_x="center", bold=True)
+            arcade.draw_text("Press ENTER to Restart", WIDTH / 2, HEIGHT / 2 - 40, arcade.color.WHITE, 20, anchor_x="center")
+
     def on_update(self, delta_time):
+        if self.game_over:
+            return
+
         self.spawn_timer += 1
 
-        # Check if the player is currently inside the active current
+        # --- Energy Depletion (100 energy over 180 seconds) ---
+        self.energy -= (100.0 / 180.0) * delta_time
+        if self.energy <= 0:
+            self.game_over = True
+
+        if self.invulnerable_timer > 0:
+            self.invulnerable_timer -= delta_time
+
+        # --- Check Currents & Determine Target Speed ---
         self.in_current = False
-        self.current_active_speed = FORWARD_SPEED
+        target_speed = FORWARD_SPEED
 
         for curr in self.currents:
             zone_left = curr['start_lane'] * LANE_WIDTH
@@ -86,16 +127,25 @@ class SimpleRunner100(arcade.Window):
             zone_bottom = curr['y'] - curr['height'] / 2
             zone_top = curr['y'] + curr['height'] / 2
 
-            # If player is within the boundaries of this current
             if zone_left <= self.player_x <= zone_right and zone_bottom <= 80 <= zone_top:
                 self.in_current = True
-                self.current_active_speed = curr['speed']
+                target_speed = curr['speed']
                 break
 
-        # Adjust score gain based on how fast you are moving
+        # --- Fade Speed In/Out smoothly ---
+        if self.current_active_speed < target_speed:
+            self.current_active_speed += 0.15  # Acceleration speed
+            if self.current_active_speed > target_speed:
+                self.current_active_speed = target_speed
+        elif self.current_active_speed > target_speed:
+            self.current_active_speed -= 0.15  # Deceleration speed
+            if self.current_active_speed < target_speed:
+                self.current_active_speed = target_speed
+
+        # Adjust score gain
         self.score += (self.current_active_speed / FORWARD_SPEED)
 
-        # Move player_x towards player_target_x steadily (SLIDE_SPEED remains constant)
+        # Move player sideways smoothly
         if self.player_x < self.player_target_x:
             self.player_x = min(self.player_target_x, self.player_x + SLIDE_SPEED)
         elif self.player_x > self.player_target_x:
@@ -110,23 +160,16 @@ class SimpleRunner100(arcade.Window):
                 self.player_lane += 1
                 self.player_target_x = LANES[self.player_lane]
 
-        # Spawn loop
+        # --- Spawn Loop ---
         if self.spawn_timer >= SPAWN_RATE:
-            # Try to spawn a new current if none exist
+            # 1. Spawn currents
             if len(self.currents) == 0 and random.random() < 0.40:
-                # 1. Determine size using probability brackets
                 roll = random.random()
-                if roll < 0.10:    # 10% chance
-                    size = random.randint(1, 5)
-                elif roll < 0.60:  # 50% chance (0.10 to 0.60)
-                    size = random.randint(6, 10)
-                else:              # 40% chance (0.60 to 1.00)
-                    size = random.randint(11, 20)
+                if roll < 0.10: size = random.randint(1, 5)
+                elif roll < 0.60: size = random.randint(6, 10)
+                else: size = random.randint(11, 20)
 
-                # 2. Determine speed based on size (the smaller the current, the faster the speed)
-                # Max speed is ~13.0 for size 1, Min speed is ~5.4 for size 20
                 current_speed = 13.4 - (size * 0.4)
-
                 start_lane = random.randint(0, NUM_LANES - size)
                 self.currents.append({
                     'start_lane': start_lane,
@@ -136,19 +179,26 @@ class SimpleRunner100(arcade.Window):
                     'height': CURRENT_HEIGHT
                 })
 
-            # Spawn obstacle clumps
-            num_clumps = random.randint(2, 4)
+            # 2. Spawn Rock Clumps (Instead of a straight horizontal line)
+            num_clumps = random.randint(2, 5)
             for _ in range(num_clumps):
-                clump_center = random.randint(5, NUM_LANES - 6)
-                clump_size = random.randint(3, 10)
-                for offset in range(-clump_size // 2, (clump_size // 2) + 1):
-                    lane_idx = clump_center + offset
+                # Pick a center point for the clump
+                center_lane = random.randint(10, NUM_LANES - 11)
+                center_y = HEIGHT + random.randint(20, 100)
+                clump_size = random.randint(5, 12)  # Number of rocks in the cluster
+
+                for _ in range(clump_size):
+                    # Scatter them around the center point
+                    lane_offset = random.randint(-4, 4)
+                    y_offset = random.randint(-40, 40)
+
+                    lane_idx = center_lane + lane_offset
                     if 0 <= lane_idx < NUM_LANES:
-                        self.obstacles.append([LANES[lane_idx], HEIGHT + 20])
+                        self.obstacles.append([LANES[lane_idx], center_y + y_offset])
 
             self.spawn_timer = 0
 
-        # Move and clean up currents
+        # Move currents
         for curr in self.currents[:]:
             curr['y'] -= self.current_active_speed
             if curr['y'] + (curr['height'] / 2) < 0:
@@ -158,20 +208,35 @@ class SimpleRunner100(arcade.Window):
         for obs in self.obstacles[:]:
             obs[1] -= self.current_active_speed
 
-            # Collision detection
-            if abs(self.player_x - obs[0]) < 8 and abs(obs[1] - 80) < 14:
-                self.reset()  # Instant restart on hit
+            # --- Collision detection ---
+            if self.invulnerable_timer <= 0:
+                if abs(self.player_x - obs[0]) < 8 and abs(obs[1] - 80) < 14:
+                    # Penalty: Lose 70 Energy
+                    self.energy -= 70.0
+
+                    # Penalty: Max food capacity reduced by 35%
+                    self.max_food_capacity *= 0.65
+                    if self.food_count > int(self.max_food_capacity):
+                        self.food_count = int(self.max_food_capacity)
+
+                    # Give 1 second of invincibility so clumps don't instantly kill you
+                    self.invulnerable_timer = 1.0
+                    self.obstacles.remove(obs)
+                    continue
 
             # Remove off-screen obstacles
             if obs[1] < -20:
                 self.obstacles.remove(obs)
 
     def on_key_press(self, key, modifiers):
-        # Add key to the active held keys set
+        if self.game_over:
+            if key == arcade.key.ENTER:
+                self.reset()
+            return
+
         if key in [arcade.key.LEFT, arcade.key.A, arcade.key.RIGHT, arcade.key.D]:
             self.keys_held.add(key)
 
-        # Instant tap responsiveness
         if self.player_x == self.player_target_x:
             if key in [arcade.key.LEFT, arcade.key.A] and self.player_lane > 0:
                 self.player_lane -= 1
@@ -180,9 +245,16 @@ class SimpleRunner100(arcade.Window):
                 self.player_lane += 1
                 self.player_target_x = LANES[self.player_lane]
 
+        # --- Use Food Mechanic ---
+        if key == arcade.key.SPACE:
+            if self.food_count > 0 and self.energy < 100:
+                self.food_count -= 1
+                # Replenish 40 energy per food eaten
+                self.energy = min(100.0, self.energy + 40.0)
+
     def on_key_release(self, key, modifiers):
-        # Remove key from the active held keys set
         self.keys_held.discard(key)
+
 
 if __name__ == "__main__":
     SimpleRunner100()
