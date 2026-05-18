@@ -64,6 +64,11 @@ class Obstacle:
 
     def project_point(self, x, y):
         """Project world coordinates into the forward-looking view."""
+        if y <= PLAYER_Y:
+            # Once an obstacle passes the player, let it keep moving off the bottom
+            # of the screen instead of pinning it to the player line.
+            return x, y, 1.0
+
         max_y = HEIGHT + 60
         travel = max(0.0, min(1.0, (y - PLAYER_Y) / max(1.0, max_y - PLAYER_Y)))
         depth_scale = 0.28 + 0.72 * (1.0 - travel)
