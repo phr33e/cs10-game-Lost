@@ -19,22 +19,26 @@ CURRENT_HEIGHT = 800
 
 LANES = [LANE_WIDTH // 2 + i * LANE_WIDTH for i in range(NUM_LANES)]
 
-# --- Custom Pixel Art Boat ---
+# --- Custom Pixel Art Boat (Wider, Orange with Black Outline) ---
 BOAT_ART = [
-    "  MM  ",
-    " MMMM ",
-    "MMDDMM",
-    "MDDDDM",
-    "MDDDDM",
-    "MDDDDM",
-    "MDDDDM",
-    "MDDDDM",
-    "MDDDDM",
-    "MDDDDM",
-    "MDDDDM",
-    "MDDDDM",
-    "MMDDMM",
-    " MMMM "
+    "    BB    ",
+    "   BOOB   ",
+    "  BOOOOB  ",
+    " BODDDDOB ",
+    "BODDDDDDOB",
+    "BODDDDDDOB",
+    "BODDDDDDOB",
+    "BODDDDDDOB",
+    "BODDDDDDOB",
+    "BODDDDDDOB",
+    "BODDDDDDOB",
+    "BODDDDDDOB",
+    "BODDDDDDOB",
+    "BODDDDDDOB",
+    " BODDDDOB ",
+    "  BOOOOB  ",
+    "   BOOB   ",
+    "    BB    "
 ]
 
 # --- Deep Narrative Passenger Scripts ---
@@ -85,11 +89,9 @@ class MediterraneanJourney(arcade.Window):
     def __init__(self):
         global WIDTH, HEIGHT, NUM_LANES, LANES, PLAYER_Y
 
-        # Initialize in True Fullscreen mode
         super().__init__(WIDTH, HEIGHT, "Mediterranean Journey", fullscreen=True)
         arcade.set_background_color((15, 35, 75))
 
-        # --- DYNAMIC FULLSCREEN CALCULATION ---
         WIDTH, HEIGHT = self.get_size()
         NUM_LANES = WIDTH // LANE_WIDTH
         LANES = [LANE_WIDTH // 2 + i * LANE_WIDTH for i in range(NUM_LANES)]
@@ -97,7 +99,6 @@ class MediterraneanJourney(arcade.Window):
 
         self.keys_held = set()
 
-        # State Machine Flags
         self.state = "MENU"
         self.reset()
         self.state = "MENU"
@@ -161,7 +162,6 @@ class MediterraneanJourney(arcade.Window):
         elif current_score >= 75000: new_zone = 5
         elif current_score >= 50000: new_zone = 4
         elif current_score >= 25000: new_zone = 3
-        # Reduced Zone 1 empty water segment from 7500 to 2500
         elif current_score >= 2500: new_zone = 2
 
         if new_zone > self.current_zone or (initialize and new_zone >= 1):
@@ -302,18 +302,27 @@ class MediterraneanJourney(arcade.Window):
             alpha = int(245 * darkness)
             arcade.draw_rect_filled(arcade.XYWH(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT), (0, 0, 0, alpha))
 
-        pontoon_color = arcade.color.SLATE_GRAY
-        inside_color = arcade.color.BISTRE
+        # Render Orange Boat with Black Outline (Updated Math for 10x18 width)
+        pontoon_color = arcade.color.ORANGE
         if self.in_current: pontoon_color = arcade.color.LIGHT_SKY_BLUE
         if self.in_rip_current: pontoon_color = arcade.color.DARK_CYAN
         if self.engine_failed: pontoon_color = arcade.color.FIREBRICK
 
-        start_x = self.player_x - 3
-        start_y = PLAYER_Y + 7
+        outline_color = arcade.color.BLACK
+        inside_color = arcade.color.BISTRE
+
+        # Adjusted for wider boat
+        start_x = self.player_x - 5
+        start_y = PLAYER_Y + 9
+
         for row_idx, row_str in enumerate(BOAT_ART):
             for col_idx, char in enumerate(row_str):
-                if char == 'M': arcade.draw_rect_filled(arcade.XYWH(start_x + col_idx, start_y - row_idx, 1, 1), pontoon_color)
-                elif char == 'D': arcade.draw_rect_filled(arcade.XYWH(start_x + col_idx, start_y - row_idx, 1, 1), inside_color)
+                if char == 'O':
+                    arcade.draw_rect_filled(arcade.XYWH(start_x + col_idx, start_y - row_idx, 1, 1), pontoon_color)
+                elif char == 'B':
+                    arcade.draw_rect_filled(arcade.XYWH(start_x + col_idx, start_y - row_idx, 1, 1), outline_color)
+                elif char == 'D':
+                    arcade.draw_rect_filled(arcade.XYWH(start_x + col_idx, start_y - row_idx, 1, 1), inside_color)
 
         if self.current_passenger_script is not None:
             box_width = 850
@@ -414,7 +423,8 @@ class MediterraneanJourney(arcade.Window):
 
         for w in self.waves[:]:
             w[1] -= (self.current_active_speed + w[3])
-            if abs(self.player_x - w[0]) < (w[2] / 2 + 6) and abs(PLAYER_Y - w[1]) < 10:
+            # Updated collision bounds for the wider boat (increased X margin)
+            if abs(self.player_x - w[0]) < (w[2] / 2 + 8) and abs(PLAYER_Y - w[1]) < 12:
                 self.energy -= 20.0
 
                 capacity_loss_percent = random.uniform(0.05, 0.10)
@@ -494,12 +504,12 @@ class MediterraneanJourney(arcade.Window):
 
         if self.spawn_timer >= SPAWN_RATE and not self.stuck_on_rock:
 
-            in_zone_1 = self.score <= 2500
-            in_zone_2 = 2500 < self.score <= 25000
+            in_zone_1 = self.score <= 7500
+            in_zone_2 = 7500 < self.score <= 25000
             in_zone_3 = 25000 < self.score <= 50000
             in_zone_4 = 50000 < self.score <= 75000
-            in_zone_5 = 75000 < self.score <= 100000
-            in_zone_6 = self.score > 100000
+            in_zone_5 = 75000 < self.score <= 80000
+            in_zone_6 = self.score > 80000
 
             if (in_zone_3 or in_zone_4 or in_zone_5) and not self.storm_active and len(self.coastguards) == 0 and not self.current_test_mode:
                 if random.random() < 0.15:
@@ -630,7 +640,8 @@ class MediterraneanJourney(arcade.Window):
             else:
                 cg['y'] -= self.current_active_speed
 
-            if abs(self.player_x - cg['x']) < 9 and abs(PLAYER_Y - cg['y']) < 19:
+            # Catch logic expanded slightly for wider boat
+            if abs(self.player_x - cg['x']) < 11 and abs(PLAYER_Y - cg['y']) < 22:
                 self.state = "CAUGHT"
 
             if cg['y'] < -200 or cg['y'] > HEIGHT + 500:
@@ -639,7 +650,8 @@ class MediterraneanJourney(arcade.Window):
         for obs in self.obstacles[:]:
             obs[1] -= self.current_active_speed
 
-            if abs(self.player_x - obs[0]) < 6 and abs(obs[1] - PLAYER_Y) < 10:
+            # Updated collision bounds for the wider boat
+            if abs(self.player_x - obs[0]) < 8 and abs(obs[1] - PLAYER_Y) < 12:
                 if self.engine_failed:
                     self.stuck_on_rock = True
                 else:
@@ -664,11 +676,11 @@ class MediterraneanJourney(arcade.Window):
 
         if self.state == "MENU":
             if key == arcade.key.KEY_1: self.reset(0)
-            elif key == arcade.key.KEY_2: self.reset(2501)
+            elif key == arcade.key.KEY_2: self.reset(7501)
             elif key == arcade.key.KEY_3: self.reset(25001)
             elif key == arcade.key.KEY_4: self.reset(50001)
             elif key == arcade.key.KEY_5: self.reset(75001)
-            elif key == arcade.key.KEY_6: self.reset(100001)
+            elif key == arcade.key.KEY_6: self.reset(80001)
             elif key == arcade.key.KEY_7: self.reset(75001, cg_test=True)
             elif key == arcade.key.KEY_8: self.reset(25001, current_test=True)
             elif key == arcade.key.KEY_9: self.reset(0, engine_test=True)
