@@ -83,7 +83,6 @@ ENGINE_FAILURE_FACT = "Engine failure is a leading cause of tragedy. Smugglers o
 
 class MediterraneanJourney(arcade.Window):
     def __init__(self):
-        # The global declaration must come BEFORE any of these variables are used
         global WIDTH, HEIGHT, NUM_LANES, LANES, PLAYER_Y
 
         # Initialize in True Fullscreen mode
@@ -158,11 +157,12 @@ class MediterraneanJourney(arcade.Window):
 
     def update_zone(self, current_score, initialize=False):
         new_zone = 1
-        if current_score >= 80000: new_zone = 6
+        if current_score >= 100000: new_zone = 6
         elif current_score >= 75000: new_zone = 5
         elif current_score >= 50000: new_zone = 4
         elif current_score >= 25000: new_zone = 3
-        elif current_score >= 7500: new_zone = 2
+        # Reduced Zone 1 empty water segment from 7500 to 2500
+        elif current_score >= 2500: new_zone = 2
 
         if new_zone > self.current_zone or (initialize and new_zone >= 1):
             self.current_zone = new_zone
@@ -180,11 +180,11 @@ class MediterraneanJourney(arcade.Window):
 
             menu_options = [
                 "1. Libyan Coastal Waters (Score 0)",
-                "2. The Empty Sea (Score 7,500)",
+                "2. The Empty Sea (Score 2,500)",
                 "3. Deep Sea Currents (Score 25,000)",
                 "4. The Deceptive Sea (Score 50,000)",
                 "5. Patrol Waters (Score 75,000)",
-                "6. The Lampedusa Approach (Score 80,000)",
+                "6. The Lampedusa Approach (Score 100,000)",
                 "7. Coast Guard Chase Test",
                 "8. Current Mechanics Test",
                 "9. Fatal Engine Failure Test"
@@ -494,12 +494,12 @@ class MediterraneanJourney(arcade.Window):
 
         if self.spawn_timer >= SPAWN_RATE and not self.stuck_on_rock:
 
-            in_zone_1 = self.score <= 7500
-            in_zone_2 = 7500 < self.score <= 25000
+            in_zone_1 = self.score <= 2500
+            in_zone_2 = 2500 < self.score <= 25000
             in_zone_3 = 25000 < self.score <= 50000
             in_zone_4 = 50000 < self.score <= 75000
-            in_zone_5 = 75000 < self.score <= 80000
-            in_zone_6 = self.score > 80000
+            in_zone_5 = 75000 < self.score <= 100000
+            in_zone_6 = self.score > 100000
 
             if (in_zone_3 or in_zone_4 or in_zone_5) and not self.storm_active and len(self.coastguards) == 0 and not self.current_test_mode:
                 if random.random() < 0.15:
@@ -658,18 +658,17 @@ class MediterraneanJourney(arcade.Window):
                 self.obstacles.remove(obs)
 
     def on_key_press(self, key, modifiers):
-        # Escape from anywhere closes the game
         if key == arcade.key.ESCAPE:
             arcade.close_window()
             return
 
         if self.state == "MENU":
             if key == arcade.key.KEY_1: self.reset(0)
-            elif key == arcade.key.KEY_2: self.reset(7501)
+            elif key == arcade.key.KEY_2: self.reset(2501)
             elif key == arcade.key.KEY_3: self.reset(25001)
             elif key == arcade.key.KEY_4: self.reset(50001)
             elif key == arcade.key.KEY_5: self.reset(75001)
-            elif key == arcade.key.KEY_6: self.reset(80001)
+            elif key == arcade.key.KEY_6: self.reset(100001)
             elif key == arcade.key.KEY_7: self.reset(75001, cg_test=True)
             elif key == arcade.key.KEY_8: self.reset(25001, current_test=True)
             elif key == arcade.key.KEY_9: self.reset(0, engine_test=True)
