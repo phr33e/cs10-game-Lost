@@ -2,13 +2,11 @@ import arcade
 import random
 import math
 
-# Screen configuration
+# Default Screen configuration (Will be dynamically overridden on launch for Fullscreen)
 NUM_LANES = 150
 LANE_WIDTH = 8
 WIDTH = NUM_LANES * LANE_WIDTH
 HEIGHT = 900
-
-# Player position
 PLAYER_Y = HEIGHT // 2
 
 # Speed settings
@@ -85,8 +83,19 @@ ENGINE_FAILURE_FACT = "Engine failure is a leading cause of tragedy. Smugglers o
 
 class MediterraneanJourney(arcade.Window):
     def __init__(self):
-        super().__init__(WIDTH, HEIGHT, "Mediterranean Journey")
+        # The global declaration must come BEFORE any of these variables are used
+        global WIDTH, HEIGHT, NUM_LANES, LANES, PLAYER_Y
+
+        # Initialize in True Fullscreen mode
+        super().__init__(WIDTH, HEIGHT, "Mediterranean Journey", fullscreen=True)
         arcade.set_background_color((15, 35, 75))
+
+        # --- DYNAMIC FULLSCREEN CALCULATION ---
+        WIDTH, HEIGHT = self.get_size()
+        NUM_LANES = WIDTH // LANE_WIDTH
+        LANES = [LANE_WIDTH // 2 + i * LANE_WIDTH for i in range(NUM_LANES)]
+        PLAYER_Y = HEIGHT // 2
+
         self.keys_held = set()
 
         # State Machine Flags
@@ -166,8 +175,8 @@ class MediterraneanJourney(arcade.Window):
 
         # --- 1. MAIN MENU SCREEN ---
         if self.state == "MENU":
-            arcade.draw_text("MEDITERRANEAN JOURNEY", WIDTH / 2, HEIGHT - 200, arcade.color.WHITE, 40, anchor_x="center", bold=True)
-            arcade.draw_text("Select Starting Zone or Test Mode", WIDTH / 2, HEIGHT - 270, arcade.color.LIGHT_GRAY, 22, anchor_x="center")
+            arcade.draw_text("MEDITERRANEAN JOURNEY", WIDTH / 2, HEIGHT / 2 + 250, arcade.color.WHITE, 40, anchor_x="center", bold=True)
+            arcade.draw_text("Select Starting Zone or Test Mode", WIDTH / 2, HEIGHT / 2 + 180, arcade.color.LIGHT_GRAY, 22, anchor_x="center")
 
             menu_options = [
                 "1. Libyan Coastal Waters (Score 0)",
@@ -183,9 +192,9 @@ class MediterraneanJourney(arcade.Window):
 
             for i, text in enumerate(menu_options):
                 color = arcade.color.LIGHT_STEEL_BLUE if i >= 6 else arcade.color.WHITE
-                arcade.draw_text(text, WIDTH / 2 - 200, HEIGHT - 330 - (i * 40), color, 18)
+                arcade.draw_text(text, WIDTH / 2 - 200, HEIGHT / 2 + 100 - (i * 40), color, 18)
 
-            arcade.draw_text("Press 1-9 to Start", WIDTH / 2, HEIGHT - 750, arcade.color.GOLD, 20, anchor_x="center", bold=True)
+            arcade.draw_text("Press 1-9 to Start  |  Press ESC to Exit", WIDTH / 2, HEIGHT / 2 - 320, arcade.color.GOLD, 20, anchor_x="center", bold=True)
             return
 
         # --- 2. INTRO NARRATIVE SCREEN ---
@@ -215,6 +224,7 @@ class MediterraneanJourney(arcade.Window):
             return
 
         # --- 4. NORMAL GAME DRAWING ---
+
         for curr in self.currents:
             width = curr['size'] * LANE_WIDTH
             center_x = (curr['start_lane'] * LANE_WIDTH) + (width / 2)
@@ -407,7 +417,6 @@ class MediterraneanJourney(arcade.Window):
             if abs(self.player_x - w[0]) < (w[2] / 2 + 6) and abs(PLAYER_Y - w[1]) < 10:
                 self.energy -= 20.0
 
-                # Small ration capacity penalty for waves
                 capacity_loss_percent = random.uniform(0.05, 0.10)
                 self.max_food_percentage *= (1.0 - capacity_loss_percent)
                 if self.food_percentage > self.max_food_percentage:
@@ -649,6 +658,11 @@ class MediterraneanJourney(arcade.Window):
                 self.obstacles.remove(obs)
 
     def on_key_press(self, key, modifiers):
+        # Escape from anywhere closes the game
+        if key == arcade.key.ESCAPE:
+            arcade.close_window()
+            return
+
         if self.state == "MENU":
             if key == arcade.key.KEY_1: self.reset(0)
             elif key == arcade.key.KEY_2: self.reset(7501)
