@@ -154,8 +154,7 @@ class MediterraneanJourney(arcade.Window):
         elif current_score >= 75000: new_zone = 5
         elif current_score >= 50000: new_zone = 4
         elif current_score >= 25000: new_zone = 3
-        # Slashed to 500 to immediately start the hazards after ~7 seconds
-        elif current_score >= 500: new_zone = 2
+        elif current_score >= 2500: new_zone = 2
 
         if new_zone > self.current_zone or (initialize and new_zone >= 1):
             self.current_zone = new_zone
@@ -264,7 +263,6 @@ class MediterraneanJourney(arcade.Window):
             alpha = int(245 * darkness)
             arcade.draw_rect_filled(arcade.XYWH(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT), (0, 0, 0, alpha))
 
-        # Render Orange Boat with Black Outline
         pontoon_color = arcade.color.ORANGE
         if self.in_current: pontoon_color = arcade.color.LIGHT_SKY_BLUE
         if self.in_rip_current: pontoon_color = arcade.color.DARK_CYAN
@@ -453,8 +451,8 @@ class MediterraneanJourney(arcade.Window):
 
         if self.spawn_timer >= SPAWN_RATE and not self.stuck_on_rock:
 
-            in_zone_1 = self.score <= 500
-            in_zone_2 = 500 < self.score <= 25000
+            in_zone_1 = self.score <= 2500
+            in_zone_2 = 2500 < self.score <= 25000
             in_zone_3 = 25000 < self.score <= 50000
             in_zone_4 = 50000 < self.score <= 75000
             in_zone_5 = 75000 < self.score <= 100000
