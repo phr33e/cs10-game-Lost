@@ -38,6 +38,18 @@ BOAT_ART = [
     " MMMM "
 ]
 
+# --- NPC Passenger Scripts ---
+PASSENGER_SCRIPTS = [
+    '"I walked across the desert for weeks to escape the military in Eritrea. We can\'t turn back now."',
+    '"They burned my village in Darfur. My brother didn\'t make it to the boats. I have to survive for him."',
+    '"The smuggler took everything we had left. If this boat sinks, my family has nothing."',
+    '"The water is so cold... I\'ve never seen the ocean before today. I\'m terrified."',
+    '"The detention camps in Tripoli... the things they did to us there. I\'d rather drown than go back."',
+    '"My daughter is asleep. Please, keep the boat steady. Just get us to Italy."',
+    '"We have been at sea for so long. Does anyone even know we are out here?"',
+    '"I used to be a teacher in Aleppo. Now I am just a shadow on a rubber boat."'
+]
+
 class MediterraneanJourney(arcade.Window):
     def __init__(self):
         super().__init__(WIDTH, HEIGHT, "Mediterranean Journey")
@@ -45,6 +57,7 @@ class MediterraneanJourney(arcade.Window):
         self.keys_held = set()
 
         self.in_menu = True
+        self.in_intro = False
         self.reset()
         self.in_menu = True
 
@@ -62,7 +75,6 @@ class MediterraneanJourney(arcade.Window):
         self.current_active_speed = FORWARD_SPEED
         self.spawn_timer = 0
 
-        # Inject the chosen starting score and test flags
         self.score = start_score
         self.cg_test_mode = cg_test
         self.keys_held.clear()
@@ -86,8 +98,14 @@ class MediterraneanJourney(arcade.Window):
         self.storm_duration_timer = 0.0
         self.rain_drops = []
 
-        # Turn off all game-stopping states
+        # --- Passenger Dialogue Mechanics ---
+        self.active_dialogue = ""
+        self.dialogue_timer = 0.0
+        self.next_dialogue_check = random.uniform(45.0, 90.0) # Check every 45-90 seconds
+
+        # State Management
         self.in_menu = False
+        self.in_intro = True # Force intro screen before gameplay begins
         self.game_over = False
         self.rescued = False
         self.caught = False
@@ -100,7 +118,7 @@ class MediterraneanJourney(arcade.Window):
     def on_draw(self):
         self.clear()
 
-        # --- MAIN MENU SCREEN ---
+        # --- 1. MAIN MENU SCREEN ---
         if self.in_menu:
             arcade.draw_text("MEDITERRANEAN JOURNEY", WIDTH / 2, HEIGHT - 200, arcade.color.WHITE, 40, anchor_x="center", bold=True)
             arcade.draw_text("Select Starting Zone", WIDTH / 2, HEIGHT - 270, arcade.color.LIGHT_GRAY, 22, anchor_x="center")
@@ -122,9 +140,29 @@ class MediterraneanJourney(arcade.Window):
             arcade.draw_text("Press 1-7 to Start", WIDTH / 2, HEIGHT - 750, arcade.color.GOLD, 20, anchor_x="center", bold=True)
             return
 
-        # --- NORMAL GAME DRAWING ---
+        # --- 2. INTRO NARRATIVE SCREEN ---
+        if self.in_intro:
+            arcade.draw_rect_filled(arcade.XYWH(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT), arcade.color.BLACK)
 
-        # 1. Draw Currents with Fade In / Fade Out logic
+            intro_text = (
+                "The Central Mediterranean.\n\n"
+                "You are at the helm of an overloaded inflatable dinghy, departing from the Libyan coast in the dead of night.\n\n"
+                "Behind you are the horrors of the detention camps. Ahead is the perilous open sea, and the hope of Lampedusa.\n"
+                "Fuel is low. Rations are scarce. You hold the lives of dozens of desperate people in your hands.\n\n"
+                "Watch the waters. Avoid the debris. Conserve your strength."
+            )
+
+            arcade.draw_text(intro_text, WIDTH / 2, HEIGHT / 2 + 50, arcade.color.LIGHT_GRAY, 18,
+                             width=800, align="center", anchor_x="center", anchor_y="center", multiline=True)
+
+            # Blinking start prompt
+            if int(self.day_timer * 2) % 2 == 0:
+                arcade.draw_text("Press ENTER to start the engine...", WIDTH / 2, HEIGHT / 2 - 150,
+                                 arcade.color.WHITE, 16, anchor_x="center", italic=True)
+            return
+
+        # --- 3. NORMAL GAME DRAWING ---
+
         for curr in self.currents:
             width = curr['size'] * LANE_WIDTH
             center_x = (curr['start_lane'] * LANE_WIDTH) + (width / 2)
@@ -145,30 +183,20 @@ class MediterraneanJourney(arcade.Window):
             else:
                 color = (135, 206, 250, alpha)
 
-            arcade.draw_rect_filled(
-                arcade.XYWH(center_x, curr['y'], width, curr['height']), color
-            )
+            arcade.draw_rect_filled(arcade.XYWH(center_x, curr['y'], width, curr['height']), color)
 
-        # 2. Draw Obstacles
         for obs in self.obstacles:
-            arcade.draw_rect_filled(
-                arcade.XYWH(obs[0], obs[1], LANE_WIDTH - 2, LANE_WIDTH - 2),
-                arcade.color.DARK_GRAY
-            )
+            arcade.draw_rect_filled(arcade.XYWH(obs[0], obs[1], LANE_WIDTH - 2, LANE_WIDTH - 2), arcade.color.DARK_GRAY)
 
-        # 3. Draw Coastguards (Updated to pixelated boat style, exactly 2x player size)
         for cg in self.coastguards:
-            # Main white hull (12 wide, 28 tall)
             arcade.draw_rect_filled(arcade.XYWH(cg['x'], cg['y'], 12, 28), arcade.color.WHITE)
-            # Coast Guard Red diagonal slash / block
             arcade.draw_rect_filled(arcade.XYWH(cg['x'], cg['y'] + 4, 12, 6), arcade.color.RED)
-            # Dark wind-shield/cabin area
             arcade.draw_rect_filled(arcade.XYWH(cg['x'], cg['y'] - 4, 8, 4), arcade.color.DARK_BLUE_GRAY)
 
             if cg['chasing'] and int(self.day_timer * 4) % 2 == 0:
                 arcade.draw_circle_outline(cg['x'], cg['y'], 24, arcade.color.RED, 2)
 
-        # 4. Day/Night Cycle & The Lantern Effect
+        # Day/Night Cycle & The Lantern Effect
         night_intensity = 0.0
         if self.day_timer > self.morning_duration:
             time_in_cycle = (self.day_timer - self.morning_duration) % (self.night_transition_speed * 2)
@@ -188,51 +216,32 @@ class MediterraneanJourney(arcade.Window):
                 r = current_fov + (i * band_thickness)
                 band_alpha = int((255 * night_intensity) * ((i + 1) / num_bands))
                 arcade.draw_circle_outline(
-                    self.player_x, PLAYER_Y,
-                    radius=r + (band_thickness / 2),
-                    color=(0, 0, 0, band_alpha),
-                    border_width=band_thickness + 2
+                    self.player_x, PLAYER_Y, radius=r + (band_thickness / 2),
+                    color=(0, 0, 0, band_alpha), border_width=band_thickness + 2
                 )
 
             lamp_alpha = int(70 * night_intensity)
-            arcade.draw_circle_filled(
-                self.player_x, PLAYER_Y,
-                lamp_radius,
-                (255, 255, 150, lamp_alpha)
-            )
+            arcade.draw_circle_filled(self.player_x, PLAYER_Y, lamp_radius, (255, 255, 150, lamp_alpha))
 
-        # 5. Storm Environment Overlay
+        # Storm Overlay
         if self.storm_active:
-            arcade.draw_rect_filled(
-                arcade.XYWH(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT),
-                (5, 10, 25, 120)
-            )
+            arcade.draw_rect_filled(arcade.XYWH(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT), (5, 10, 25, 120))
             for drop in self.rain_drops:
-                arcade.draw_line(
-                    drop[0], drop[1],
-                    drop[0] - 4, drop[1] - drop[3],
-                    (174, 219, 240, 100), 1
-                )
+                arcade.draw_line(drop[0], drop[1], drop[0] - 4, drop[1] - drop[3], (174, 219, 240, 100), 1)
 
-        # 6. Low Energy Vignette
+        # Low Energy Vignette
         if self.energy < 15 and not self.game_over and not self.rescued and not self.caught:
             darkness = 1.0 - (max(self.energy, 0) / 15.0)
             alpha = int(245 * darkness)
-            arcade.draw_rect_filled(
-                arcade.XYWH(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT),
-                (0, 0, 0, alpha)
-            )
+            arcade.draw_rect_filled(arcade.XYWH(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT), (0, 0, 0, alpha))
 
-        # 7. Draw Pixelated Player Boat
+        # Pixelated Player Boat
         pontoon_color = arcade.color.SLATE_GRAY
         inside_color = arcade.color.BISTRE
 
-        if self.in_current:
-            pontoon_color = arcade.color.LIGHT_SKY_BLUE
-        if self.in_rip_current:
-            pontoon_color = arcade.color.DARK_CYAN
-        if self.engine_failed:
-            pontoon_color = arcade.color.FIREBRICK
+        if self.in_current: pontoon_color = arcade.color.LIGHT_SKY_BLUE
+        if self.in_rip_current: pontoon_color = arcade.color.DARK_CYAN
+        if self.engine_failed: pontoon_color = arcade.color.FIREBRICK
 
         start_x = self.player_x - 3
         start_y = PLAYER_Y + 7
@@ -244,7 +253,23 @@ class MediterraneanJourney(arcade.Window):
                 elif char == 'D':
                     arcade.draw_rect_filled(arcade.XYWH(start_x + col_idx, start_y - row_idx, 1, 1), inside_color)
 
-        # 8. Draw UI
+        # --- Passenger Dialogue Box ---
+        if self.dialogue_timer > 0 and self.active_dialogue != "":
+            box_width = 800
+            box_height = 80
+
+            # Fade out calculation for the last 2 seconds
+            alpha = 200
+            text_alpha = 255
+            if self.dialogue_timer < 2.0:
+                alpha = int(200 * (self.dialogue_timer / 2.0))
+                text_alpha = int(255 * (self.dialogue_timer / 2.0))
+
+            arcade.draw_rect_filled(arcade.XYWH(WIDTH / 2, 120, box_width, box_height), (0, 0, 0, alpha))
+            arcade.draw_text(self.active_dialogue, WIDTH / 2, 120, (255, 255, 255, text_alpha), 16,
+                             width=760, align="center", anchor_x="center", anchor_y="center", multiline=True, italic=True)
+
+        # UI
         arcade.draw_text(f"RATIONS: {self.food_percentage:.1f}% / {self.max_food_percentage:.1f}%",
                          15, HEIGHT - 35, arcade.color.ORANGE, 16, bold=True)
 
@@ -270,23 +295,38 @@ class MediterraneanJourney(arcade.Window):
             arcade.draw_rect_filled(arcade.XYWH(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT), (0, 0, 0, 200))
             arcade.draw_text("LAMPEDUSA COAST SIGHTED. YOU SURVIVED.", WIDTH / 2, HEIGHT / 2, arcade.color.GOLD, 24, anchor_x="center", bold=True)
             arcade.draw_text("Press ENTER to return to Menu", WIDTH / 2, HEIGHT / 2 - 40, arcade.color.WHITE, 20, anchor_x="center")
-
         elif self.caught:
             arcade.draw_rect_filled(arcade.XYWH(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT), (0, 0, 0, 230))
             arcade.draw_text("INTERCEPTED BY COASTGUARD", WIDTH / 2, HEIGHT / 2, arcade.color.RED, 26, anchor_x="center", bold=True)
             arcade.draw_text("Press ENTER to return to Menu", WIDTH / 2, HEIGHT / 2 - 40, arcade.color.WHITE, 20, anchor_x="center")
-
         elif self.game_over:
             arcade.draw_rect_filled(arcade.XYWH(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT), arcade.color.BLACK)
             arcade.draw_text("THE JOURNEY HAS ENDED", WIDTH / 2, HEIGHT / 2, arcade.color.RED, 30, anchor_x="center", bold=True)
             arcade.draw_text("Press ENTER to return to Menu", WIDTH / 2, HEIGHT / 2 - 40, arcade.color.WHITE, 20, anchor_x="center")
 
     def on_update(self, delta_time):
+        # Update day timer for blinking text on intro screen
+        if self.in_intro:
+            self.day_timer += delta_time
+            return
+
         if self.in_menu or self.game_over or self.rescued or self.caught:
             return
 
         self.spawn_timer += 1
         self.day_timer += delta_time
+
+        # --- Passenger Dialogue Logic ---
+        if self.dialogue_timer > 0:
+            self.dialogue_timer -= delta_time
+        else:
+            self.next_dialogue_check -= delta_time
+            if self.next_dialogue_check <= 0:
+                # 30% chance to speak when the timer hits
+                if random.random() < 0.30:
+                    self.active_dialogue = random.choice(PASSENGER_SCRIPTS)
+                    self.dialogue_timer = 10.0 # Display for 10 seconds
+                self.next_dialogue_check = random.uniform(45.0, 90.0)
 
         # --- Check Win Condition ---
         if self.score >= 30000:
@@ -503,61 +543,49 @@ class MediterraneanJourney(arcade.Window):
 
         # Update Coastguards (Enhanced Physics & Bounding Logic)
         for cg in self.coastguards[:]:
-            # Detection check
             vis_radius_x = 10 * LANE_WIDTH
             vis_radius_y = 10 * LANE_WIDTH * 2
             if abs(self.player_x - cg['x']) <= vis_radius_x and abs(PLAYER_Y - cg['y']) <= vis_radius_y:
                 cg['chasing'] = True
 
-            # Bounding scales adjusted for the 12x28 coast guard vs 6x6 obstacle blocks
             cg_half_w = 6
             cg_half_h = 14
             obs_half_size = 3
 
             if cg['chasing']:
-                # 1. Horizontal Tracking with Obstacle Safety Checking
+                # Horizontal Tracking
                 old_x = cg['x']
                 if abs(cg['x'] - self.player_x) > 8:
                     cg['x'] += (SLIDE_SPEED * 0.9) if self.player_x > cg['x'] else -(SLIDE_SPEED * 0.9)
 
-                # Check for side-collisions with obstacles
                 for obs in self.obstacles:
                     if (abs(cg['x'] - obs[0]) < (cg_half_w + obs_half_size) and
                         abs(cg['y'] - obs[1]) < (cg_half_h + obs_half_size)):
-                        cg['x'] = old_x # Revert tracking, do not clip through
+                        cg['x'] = old_x
                         break
 
-                # 2. Vertical Logic (Intercept from front or pursue from behind)
+                # Vertical Logic
                 old_y = cg['y']
                 if cg['y'] > PLAYER_Y:
-                    # Coming from the front: moves downwards relative to screen
                     cg['y'] -= (self.current_active_speed + 1.0)
-
-                    # Intercept obstacle collision (Downwards)
                     for obs in self.obstacles:
                         if (abs(cg['x'] - obs[0]) < (cg_half_w + obs_half_size) and
                             abs(cg['y'] - obs[1]) < (cg_half_h + obs_half_size)):
-                            cg['y'] = old_y - self.current_active_speed # Match scroll pace, blocked!
+                            cg['y'] = old_y - self.current_active_speed
                             break
                 else:
-                    # Player has passed: switch engine profile and chase upwards
                     cg['y'] += 1.5
-
-                    # Intercept obstacle collision (Upwards)
                     for obs in self.obstacles:
                         if (abs(cg['x'] - obs[0]) < (cg_half_w + obs_half_size) and
                             abs(cg['y'] - obs[1]) < (cg_half_h + obs_half_size)):
-                            cg['y'] = old_y - self.current_active_speed # Shoved backwards by wave flow
+                            cg['y'] = old_y - self.current_active_speed
                             break
             else:
-                # Unalerted drift
                 cg['y'] -= self.current_active_speed
 
-            # Player capture bounding check
             if abs(self.player_x - cg['x']) < 9 and abs(PLAYER_Y - cg['y']) < 19:
                 self.caught = True
 
-            # Offscreen clean up
             if cg['y'] < -200 or cg['y'] > HEIGHT + 500:
                 self.coastguards.remove(cg)
 
@@ -565,7 +593,6 @@ class MediterraneanJourney(arcade.Window):
         for obs in self.obstacles[:]:
             obs[1] -= self.current_active_speed
 
-            # Unforgiving Collision (No I-Frames)
             if abs(self.player_x - obs[0]) < 6 and abs(obs[1] - PLAYER_Y) < 10:
                 self.energy -= 70.0
                 self.engine_failure_chance += 0.05
@@ -591,6 +618,13 @@ class MediterraneanJourney(arcade.Window):
             elif key == arcade.key.KEY_5: self.reset(15001)
             elif key == arcade.key.KEY_6: self.reset(25001)
             elif key == arcade.key.KEY_7: self.reset(15001, cg_test=True)
+            return
+
+        # --- Handle Intro Screen Input ---
+        if self.in_intro:
+            if key == arcade.key.ENTER:
+                self.in_intro = False
+                self.day_timer = 0.0 # Reset timer so day/night cycle starts fresh
             return
 
         # --- Handle End State Returns ---
