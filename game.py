@@ -19,28 +19,29 @@ CURRENT_HEIGHT = 800
 
 LANES = [LANE_WIDTH // 2 + i * LANE_WIDTH for i in range(NUM_LANES)]
 
-# --- Custom Pixel Art Boat ---
+# --- Custom Pixel Art Boat (Orange with Black Outline) ---
 BOAT_ART = [
-    "  MM  ",
-    " MMMM ",
-    "MMDDMM",
-    "MDDDDM",
-    "MDDDDM",
-    "MDDDDM",
-    "MDDDDM",
-    "MDDDDM",
-    "MDDDDM",
-    "MDDDDM",
-    "MDDDDM",
-    "MDDDDM",
-    "MMDDMM",
-    " MMMM "
+    "  BB  ",
+    " BOOB ",
+    "BODDOB",
+    "BODDOB",
+    "BODDOB",
+    "BODDOB",
+    "BODDOB",
+    "BODDOB",
+    "BODDOB",
+    "BODDOB",
+    "BODDOB",
+    "BODDOB",
+    "BODDOB",
+    " BOOB ",
+    "  BB  "
 ]
 
 # --- Deep Narrative Passenger Scripts ---
 PASSENGER_SCRIPTS = [
     [
-        '"Driver... do you think the coast guard is actually looking for us?"',
+        '"Driver... do you think anyone is actually looking for us?"',
         '"My name is Amir. I used to teach mathematics in Aleppo. Now I am sitting in bilge water, praying to a sky that feels empty."',
         '"My daughter, Noor, is sleeping against my chest. I told her we were going on a grand adventure on a big ship."',
         '"When she saw this inflatable raft on the beach... she cried. But we couldn\'t stay in Libya. You know what happens there."',
@@ -83,14 +84,11 @@ ENGINE_FAILURE_FACT = "Engine failure is a leading cause of tragedy. Smugglers o
 
 class MediterraneanJourney(arcade.Window):
     def __init__(self):
-        # The global declaration must come BEFORE any of these variables are used
         global WIDTH, HEIGHT, NUM_LANES, LANES, PLAYER_Y
 
-        # Initialize in True Fullscreen mode
         super().__init__(WIDTH, HEIGHT, "Mediterranean Journey", fullscreen=True)
         arcade.set_background_color((15, 35, 75))
 
-        # --- DYNAMIC FULLSCREEN CALCULATION ---
         WIDTH, HEIGHT = self.get_size()
         NUM_LANES = WIDTH // LANE_WIDTH
         LANES = [LANE_WIDTH // 2 + i * LANE_WIDTH for i in range(NUM_LANES)]
@@ -98,18 +96,15 @@ class MediterraneanJourney(arcade.Window):
 
         self.keys_held = set()
 
-        # State Machine Flags
-        self.state = "MENU"
+        self.state = "INTRO"
         self.reset()
-        self.state = "MENU"
 
-    def reset(self, start_score=0, cg_test=False, current_test=False, engine_test=False):
+    def reset(self, start_score=0):
         self.player_lane = NUM_LANES // 2
         self.player_x = LANES[self.player_lane]
         self.player_target_x = LANES[self.player_lane]
         self.obstacles = []
         self.currents = []
-        self.coastguards = []
         self.waves = []
         self.beach_y = None
 
@@ -119,9 +114,6 @@ class MediterraneanJourney(arcade.Window):
         self.spawn_timer = 0
 
         self.score = start_score
-        self.cg_test_mode = cg_test
-        self.current_test_mode = current_test
-        self.engine_test_mode = engine_test
         self.keys_held.clear()
 
         self.energy = 100.0
@@ -140,9 +132,11 @@ class MediterraneanJourney(arcade.Window):
         self.storm_duration_timer = 0.0
         self.rain_drops = []
 
+        # Fresh copy of passenger scripts for this run
+        self.available_scripts = list(PASSENGER_SCRIPTS)
         self.current_passenger_script = None
         self.passenger_dialogue_index = 0
-        self.next_dialogue_check = random.uniform(30.0, 60.0)
+        self.next_dialogue_check = random.uniform(15.0, 30.0) # Prompts occur much more frequently
 
         self.current_zone = 1
         self.active_fact = ZONE_FACTS[1]
@@ -151,18 +145,15 @@ class MediterraneanJourney(arcade.Window):
         self.morning_duration = 180.0
         self.night_transition_speed = 1200.0
 
-        if self.engine_test_mode:
-            self.engine_failed = True
-
         self.update_zone(self.score, initialize=True)
 
     def update_zone(self, current_score, initialize=False):
         new_zone = 1
-        if current_score >= 80000: new_zone = 6
+        if current_score >= 100000: new_zone = 6
         elif current_score >= 75000: new_zone = 5
         elif current_score >= 50000: new_zone = 4
         elif current_score >= 25000: new_zone = 3
-        elif current_score >= 7500: new_zone = 2
+        elif current_score >= 2500: new_zone = 2
 
         if new_zone > self.current_zone or (initialize and new_zone >= 1):
             self.current_zone = new_zone
@@ -173,31 +164,6 @@ class MediterraneanJourney(arcade.Window):
     def on_draw(self):
         self.clear()
 
-        # --- 1. MAIN MENU SCREEN ---
-        if self.state == "MENU":
-            arcade.draw_text("MEDITERRANEAN JOURNEY", WIDTH / 2, HEIGHT / 2 + 250, arcade.color.WHITE, 40, anchor_x="center", bold=True)
-            arcade.draw_text("Select Starting Zone or Test Mode", WIDTH / 2, HEIGHT / 2 + 180, arcade.color.LIGHT_GRAY, 22, anchor_x="center")
-
-            menu_options = [
-                "1. Libyan Coastal Waters (Score 0)",
-                "2. The Empty Sea (Score 7,500)",
-                "3. Deep Sea Currents (Score 25,000)",
-                "4. The Deceptive Sea (Score 50,000)",
-                "5. Patrol Waters (Score 75,000)",
-                "6. The Lampedusa Approach (Score 80,000)",
-                "7. Coast Guard Chase Test",
-                "8. Current Mechanics Test",
-                "9. Fatal Engine Failure Test"
-            ]
-
-            for i, text in enumerate(menu_options):
-                color = arcade.color.LIGHT_STEEL_BLUE if i >= 6 else arcade.color.WHITE
-                arcade.draw_text(text, WIDTH / 2 - 200, HEIGHT / 2 + 100 - (i * 40), color, 18)
-
-            arcade.draw_text("Press 1-9 to Start  |  Press ESC to Exit", WIDTH / 2, HEIGHT / 2 - 320, arcade.color.GOLD, 20, anchor_x="center", bold=True)
-            return
-
-        # --- 2. INTRO NARRATIVE SCREEN ---
         if self.state == "INTRO":
             arcade.draw_rect_filled(arcade.XYWH(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT), arcade.color.BLACK)
             intro_text = (
@@ -214,7 +180,6 @@ class MediterraneanJourney(arcade.Window):
                 arcade.draw_text("Press ENTER to continue...", WIDTH / 2, HEIGHT / 2 - 150, arcade.color.WHITE, 16, anchor_x="center", italic=True)
             return
 
-        # --- 3. CHECKPOINT SLIDESHOW SCREEN ---
         if self.state == "CHECKPOINT":
             arcade.draw_rect_filled(arcade.XYWH(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT), arcade.color.BLACK)
             arcade.draw_text(self.active_fact, WIDTH / 2, HEIGHT / 2, arcade.color.LIGHT_GRAY, 22,
@@ -223,7 +188,7 @@ class MediterraneanJourney(arcade.Window):
                 arcade.draw_text("Press ENTER to start the engine...", WIDTH / 2, HEIGHT / 2 - 200, arcade.color.WHITE, 16, anchor_x="center", italic=True)
             return
 
-        # --- 4. NORMAL GAME DRAWING ---
+        # --- NORMAL GAME DRAWING ---
 
         for curr in self.currents:
             width = curr['size'] * LANE_WIDTH
@@ -265,13 +230,6 @@ class MediterraneanJourney(arcade.Window):
         for obs in self.obstacles:
             arcade.draw_rect_filled(arcade.XYWH(obs[0], obs[1], LANE_WIDTH - 2, LANE_WIDTH - 2), arcade.color.DARK_GRAY)
 
-        for cg in self.coastguards:
-            arcade.draw_rect_filled(arcade.XYWH(cg['x'], cg['y'], 12, 28), arcade.color.WHITE)
-            arcade.draw_rect_filled(arcade.XYWH(cg['x'], cg['y'] + 4, 12, 6), arcade.color.RED)
-            arcade.draw_rect_filled(arcade.XYWH(cg['x'], cg['y'] - 4, 8, 4), arcade.color.DARK_BLUE_GRAY)
-            if cg['chasing'] and int(self.day_timer * 4) % 2 == 0:
-                arcade.draw_circle_outline(cg['x'], cg['y'], 24, arcade.color.RED, 2)
-
         night_intensity = 0.0
         if self.day_timer > self.morning_duration:
             time_in_cycle = (self.day_timer - self.morning_duration) % (self.night_transition_speed * 2)
@@ -302,18 +260,25 @@ class MediterraneanJourney(arcade.Window):
             alpha = int(245 * darkness)
             arcade.draw_rect_filled(arcade.XYWH(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT), (0, 0, 0, alpha))
 
-        pontoon_color = arcade.color.SLATE_GRAY
-        inside_color = arcade.color.BISTRE
+        # Render Orange Boat with Black Outline
+        pontoon_color = arcade.color.ORANGE
         if self.in_current: pontoon_color = arcade.color.LIGHT_SKY_BLUE
         if self.in_rip_current: pontoon_color = arcade.color.DARK_CYAN
         if self.engine_failed: pontoon_color = arcade.color.FIREBRICK
+
+        outline_color = arcade.color.BLACK
+        inside_color = arcade.color.BISTRE
 
         start_x = self.player_x - 3
         start_y = PLAYER_Y + 7
         for row_idx, row_str in enumerate(BOAT_ART):
             for col_idx, char in enumerate(row_str):
-                if char == 'M': arcade.draw_rect_filled(arcade.XYWH(start_x + col_idx, start_y - row_idx, 1, 1), pontoon_color)
-                elif char == 'D': arcade.draw_rect_filled(arcade.XYWH(start_x + col_idx, start_y - row_idx, 1, 1), inside_color)
+                if char == 'O':
+                    arcade.draw_rect_filled(arcade.XYWH(start_x + col_idx, start_y - row_idx, 1, 1), pontoon_color)
+                elif char == 'B':
+                    arcade.draw_rect_filled(arcade.XYWH(start_x + col_idx, start_y - row_idx, 1, 1), outline_color)
+                elif char == 'D':
+                    arcade.draw_rect_filled(arcade.XYWH(start_x + col_idx, start_y - row_idx, 1, 1), inside_color)
 
         if self.current_passenger_script is not None:
             box_width = 850
@@ -352,15 +317,11 @@ class MediterraneanJourney(arcade.Window):
         if self.state == "RESCUED":
             arcade.draw_rect_filled(arcade.XYWH(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT), (0, 0, 0, 200))
             arcade.draw_text("LAMPEDUSA COAST SIGHTED. YOU SURVIVED.", WIDTH / 2, HEIGHT / 2, arcade.color.GOLD, 24, anchor_x="center", bold=True)
-            arcade.draw_text("Press ENTER to return to Menu", WIDTH / 2, HEIGHT / 2 - 40, arcade.color.WHITE, 20, anchor_x="center")
-        elif self.state == "CAUGHT":
-            arcade.draw_rect_filled(arcade.XYWH(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT), (0, 0, 0, 230))
-            arcade.draw_text("INTERCEPTED BY COASTGUARD", WIDTH / 2, HEIGHT / 2, arcade.color.RED, 26, anchor_x="center", bold=True)
-            arcade.draw_text("Press ENTER to return to Menu", WIDTH / 2, HEIGHT / 2 - 40, arcade.color.WHITE, 20, anchor_x="center")
+            arcade.draw_text("Press ENTER to restart", WIDTH / 2, HEIGHT / 2 - 40, arcade.color.WHITE, 20, anchor_x="center")
         elif self.state == "GAMEOVER":
             arcade.draw_rect_filled(arcade.XYWH(WIDTH / 2, HEIGHT / 2, WIDTH, HEIGHT), arcade.color.BLACK)
             arcade.draw_text("THE JOURNEY HAS ENDED", WIDTH / 2, HEIGHT / 2, arcade.color.RED, 30, anchor_x="center", bold=True)
-            arcade.draw_text("Press ENTER to return to Menu", WIDTH / 2, HEIGHT / 2 - 40, arcade.color.WHITE, 20, anchor_x="center")
+            arcade.draw_text("Press ENTER to restart", WIDTH / 2, HEIGHT / 2 - 40, arcade.color.WHITE, 20, anchor_x="center")
 
     def on_update(self, delta_time):
         if self.state in ["INTRO", "CHECKPOINT"]:
@@ -384,20 +345,16 @@ class MediterraneanJourney(arcade.Window):
                 self.state = "RESCUED"
                 return
 
-        if self.current_passenger_script is None:
+        # --- Passenger Narrative Logic (Frequent & Unique) ---
+        if self.current_passenger_script is None and len(self.available_scripts) > 0:
             self.next_dialogue_check -= delta_time
             if self.next_dialogue_check <= 0:
-                if random.random() < 0.25:
-                    self.current_passenger_script = random.choice(PASSENGER_SCRIPTS)
+                # 60% chance to speak when the timer hits
+                if random.random() < 0.60:
+                    self.current_passenger_script = random.choice(self.available_scripts)
+                    self.available_scripts.remove(self.current_passenger_script) # Prevents repeating
                     self.passenger_dialogue_index = 0
-                self.next_dialogue_check = random.uniform(30.0, 60.0)
-
-        if self.cg_test_mode and len(self.coastguards) == 0:
-            self.coastguards.append({
-                'x': LANES[random.randint(10, NUM_LANES - 11)],
-                'y': HEIGHT + 100,
-                'chasing': True
-            })
+                self.next_dialogue_check = random.uniform(15.0, 30.0) # Check more often
 
         if self.storm_active:
             self.storm_duration_timer -= delta_time
@@ -416,7 +373,6 @@ class MediterraneanJourney(arcade.Window):
             w[1] -= (self.current_active_speed + w[3])
             if abs(self.player_x - w[0]) < (w[2] / 2 + 6) and abs(PLAYER_Y - w[1]) < 10:
                 self.energy -= 20.0
-
                 capacity_loss_percent = random.uniform(0.05, 0.10)
                 self.max_food_percentage *= (1.0 - capacity_loss_percent)
                 if self.food_percentage > self.max_food_percentage:
@@ -426,7 +382,7 @@ class MediterraneanJourney(arcade.Window):
             elif w[1] < -50:
                 self.waves.remove(w)
 
-        if not self.engine_failed and not self.current_test_mode:
+        if not self.engine_failed:
             self.engine_check_timer += delta_time
             if self.engine_check_timer >= self.next_engine_check:
                 if random.random() < self.engine_failure_chance:
@@ -494,51 +450,51 @@ class MediterraneanJourney(arcade.Window):
 
         if self.spawn_timer >= SPAWN_RATE and not self.stuck_on_rock:
 
-            in_zone_1 = self.score <= 7500
-            in_zone_2 = 7500 < self.score <= 25000
+            in_zone_1 = self.score <= 2500
+            in_zone_2 = 2500 < self.score <= 25000
             in_zone_3 = 25000 < self.score <= 50000
             in_zone_4 = 50000 < self.score <= 75000
-            in_zone_5 = 75000 < self.score <= 80000
-            in_zone_6 = self.score > 80000
+            in_zone_5 = 75000 < self.score <= 100000
+            in_zone_6 = self.score > 100000
 
-            if (in_zone_3 or in_zone_4 or in_zone_5) and not self.storm_active and len(self.coastguards) == 0 and not self.current_test_mode:
+            if (in_zone_3 or in_zone_4 or in_zone_5) and not self.storm_active:
                 if random.random() < 0.15:
                     self.storm_active = True
                     self.storm_duration_timer = 20.0
                     self.rain_drops = [[random.randint(0, WIDTH), random.randint(0, HEIGHT), random.uniform(800, 1200), random.randint(15, 30)] for _ in range(120)]
 
-            if in_zone_3 or in_zone_4 or in_zone_5 or in_zone_6 or self.cg_test_mode or self.current_test_mode:
-                current_spawn_chance = 0.80 if self.storm_active else 0.40
-                if self.current_test_mode: current_spawn_chance = 0.90
+            # Currents now spawn unconditionally across all zones
+            current_spawn_chance = 0.80 if self.storm_active else 0.40
 
-                if len(self.currents) == 0 and random.random() < current_spawn_chance:
-                    is_rip = False
-                    if in_zone_4 and random.random() < 0.30 and not self.storm_active:
-                        is_rip = True
-                        size = random.randint(15, 25)
-                        current_speed = base_speed * 0.2
-                        current_h = 350
-                    else:
-                        roll = random.random()
-                        if roll < 0.30: size = random.randint(1, 3)
-                        elif roll < 0.70: size = random.randint(4, 7)
-                        else: size = random.randint(8, 10)
-                        speed_multiplier = 1.2 + random.uniform(0.2, 0.5)
-                        current_speed = base_speed * speed_multiplier
-                        current_h = CURRENT_HEIGHT
+            if len(self.currents) == 0 and random.random() < current_spawn_chance:
+                is_rip = False
+                # Rips maintain a flat 15% chance everywhere
+                if random.random() < 0.15 and not self.storm_active:
+                    is_rip = True
+                    size = random.randint(15, 25)
+                    current_speed = base_speed * 0.2
+                    current_h = 350
+                else:
+                    roll = random.random()
+                    if roll < 0.30: size = random.randint(1, 3)
+                    elif roll < 0.70: size = random.randint(4, 7)
+                    else: size = random.randint(8, 10)
+                    speed_multiplier = 1.2 + random.uniform(0.2, 0.5)
+                    current_speed = base_speed * speed_multiplier
+                    current_h = CURRENT_HEIGHT
 
-                    start_lane = random.randint(0, NUM_LANES - size)
-                    self.currents.append({
-                        'start_lane': start_lane,
-                        'size': size,
-                        'speed': current_speed,
-                        'y': HEIGHT + (current_h / 2),
-                        'height': current_h,
-                        'is_rip': is_rip
-                    })
+                start_lane = random.randint(0, NUM_LANES - size)
+                self.currents.append({
+                    'start_lane': start_lane,
+                    'size': size,
+                    'speed': current_speed,
+                    'y': HEIGHT + (current_h / 2),
+                    'height': current_h,
+                    'is_rip': is_rip
+                })
 
             spawn_obstacles = True
-            if in_zone_1 or self.cg_test_mode or self.current_test_mode:
+            if in_zone_1:
                 num_clumps = 0
                 base_clump_size = (0, 0)
                 spawn_obstacles = False
@@ -547,7 +503,7 @@ class MediterraneanJourney(arcade.Window):
                     num_clumps = 1
                     base_clump_size = (1, 2)
                 else: spawn_obstacles = False
-            elif in_zone_3 or in_zone_5 or self.cg_test_mode:
+            elif in_zone_3 or in_zone_5:
                 num_clumps = random.randint(2, 4)
                 base_clump_size = (3, 6)
             elif in_zone_4:
@@ -579,62 +535,12 @@ class MediterraneanJourney(arcade.Window):
                             if 0 <= lane_idx < NUM_LANES:
                                 self.obstacles.append([LANES[lane_idx], center_y + y_offset])
 
-            if in_zone_5 and len(self.coastguards) == 0 and not self.storm_active and not self.cg_test_mode and not self.current_test_mode:
-                if random.random() < 0.2:
-                    self.coastguards.append({
-                        'x': LANES[random.randint(10, NUM_LANES - 11)],
-                        'y': HEIGHT + 400,
-                        'chasing': False
-                    })
-
             self.spawn_timer = 0
 
         for curr in self.currents[:]:
             curr['y'] -= self.current_active_speed
             if curr['y'] + (curr['height'] / 2) < 0:
                 self.currents.remove(curr)
-
-        for cg in self.coastguards[:]:
-            vis_radius_x = 10 * LANE_WIDTH
-            vis_radius_y = 10 * LANE_WIDTH * 2
-            if abs(self.player_x - cg['x']) <= vis_radius_x and abs(PLAYER_Y - cg['y']) <= vis_radius_y:
-                cg['chasing'] = True
-
-            cg_half_w = 6
-            cg_half_h = 14
-            obs_half_size = 3
-
-            if cg['chasing']:
-                old_x = cg['x']
-                if abs(cg['x'] - self.player_x) > 8:
-                    cg['x'] += (SLIDE_SPEED * 0.9) if self.player_x > cg['x'] else -(SLIDE_SPEED * 0.9)
-
-                for obs in self.obstacles:
-                    if (abs(cg['x'] - obs[0]) < (cg_half_w + obs_half_size) and abs(cg['y'] - obs[1]) < (cg_half_h + obs_half_size)):
-                        cg['x'] = old_x
-                        break
-
-                old_y = cg['y']
-                if cg['y'] > PLAYER_Y:
-                    cg['y'] -= (self.current_active_speed + 1.0)
-                    for obs in self.obstacles:
-                        if (abs(cg['x'] - obs[0]) < (cg_half_w + obs_half_size) and abs(cg['y'] - obs[1]) < (cg_half_h + obs_half_size)):
-                            cg['y'] = old_y - self.current_active_speed
-                            break
-                else:
-                    cg['y'] += 1.5
-                    for obs in self.obstacles:
-                        if (abs(cg['x'] - obs[0]) < (cg_half_w + obs_half_size) and abs(cg['y'] - obs[1]) < (cg_half_h + obs_half_size)):
-                            cg['y'] = old_y - self.current_active_speed
-                            break
-            else:
-                cg['y'] -= self.current_active_speed
-
-            if abs(self.player_x - cg['x']) < 9 and abs(PLAYER_Y - cg['y']) < 19:
-                self.state = "CAUGHT"
-
-            if cg['y'] < -200 or cg['y'] > HEIGHT + 500:
-                self.coastguards.remove(cg)
 
         for obs in self.obstacles[:]:
             obs[1] -= self.current_active_speed
@@ -658,23 +564,8 @@ class MediterraneanJourney(arcade.Window):
                 self.obstacles.remove(obs)
 
     def on_key_press(self, key, modifiers):
-        # Escape from anywhere closes the game
         if key == arcade.key.ESCAPE:
             arcade.close_window()
-            return
-
-        if self.state == "MENU":
-            if key == arcade.key.KEY_1: self.reset(0)
-            elif key == arcade.key.KEY_2: self.reset(7501)
-            elif key == arcade.key.KEY_3: self.reset(25001)
-            elif key == arcade.key.KEY_4: self.reset(50001)
-            elif key == arcade.key.KEY_5: self.reset(75001)
-            elif key == arcade.key.KEY_6: self.reset(80001)
-            elif key == arcade.key.KEY_7: self.reset(75001, cg_test=True)
-            elif key == arcade.key.KEY_8: self.reset(25001, current_test=True)
-            elif key == arcade.key.KEY_9: self.reset(0, engine_test=True)
-
-            self.state = "INTRO"
             return
 
         if self.state == "INTRO":
@@ -689,10 +580,10 @@ class MediterraneanJourney(arcade.Window):
                 self.state = "PLAYING"
             return
 
-        if self.state in ["GAMEOVER", "RESCUED", "CAUGHT"]:
+        if self.state in ["GAMEOVER", "RESCUED"]:
             if key == arcade.key.ENTER:
                 self.reset()
-                self.state = "MENU"
+                self.state = "INTRO"
             return
 
         if not self.engine_failed:
