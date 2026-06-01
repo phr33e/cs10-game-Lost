@@ -1,0 +1,60 @@
+name: Build and Publish Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            asset_name: Mediterranean_Journey_mac.zip
+            pyinstaller_args: --windowed
+          - os: windows-latest
+            asset_name: Mediterranean_Journey_windows.zip
+            pyinstaller_args: --windowed
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pyinstaller
+
+      - name: Build app
+        shell: bash
+        run: |
+          python -m PyInstaller --noconfirm --clean --name "Mediterranean Journey" ${{ matrix.pyinstaller_args }} game.py
+
+      - name: Package macOS app
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          cd dist
+          zip -r "../${{ matrix.asset_name }}" "Mediterranean Journey.app"
+
+      - name: Package Windows app
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "dist\Mediterranean Journey" -DestinationPath "${{ matrix.asset_name }}" -Force
+
+      - name: Upload release asset
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.asset_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
