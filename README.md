@@ -41,7 +41,9 @@ On macOS, this creates a `.app` bundle inside `dist/`:
 pyinstaller --noconfirm --windowed --name "Mediterranean Journey" game.py
 ```
 
-If you want a single-file build instead of a folder, you can use:
+This is usually the best format to zip and share. PyInstaller also supports `--onefile`, but for macOS that mode is less ideal for a graphical app.
+
+If you still want a single-file build, you can use:
 
 ```bash
 pyinstaller --noconfirm --onefile --windowed --name "Mediterranean Journey" game.py
@@ -78,4 +80,3 @@ Upload the zipped Mac build and zipped Windows build separately, then give playe
 - This project currently starts in fullscreen.
 - Press `Esc` to quit.
 - If you later add external assets like images or sounds, you may need to include them in the PyInstaller build with `--add-data`.
-
