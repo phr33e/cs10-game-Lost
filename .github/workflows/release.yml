@@ -13,9 +13,11 @@ jobs:
         include:
           - os: macos-latest
             asset_name: Mediterranean_Journey_mac.zip
+            artifact_name: macos-build
             pyinstaller_args: --windowed
           - os: windows-latest
             asset_name: Mediterranean_Journey_windows.zip
+            artifact_name: windows-build
             pyinstaller_args: --windowed
     runs-on: ${{ matrix.os }}
 
@@ -51,10 +53,26 @@ jobs:
         run: |
           Compress-Archive -Path "dist\Mediterranean Journey" -DestinationPath "${{ matrix.asset_name }}" -Force
 
-      - name: Upload release asset
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.asset_name }}
+
+  publish:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ matrix.asset_name }}
+          files: release-assets/**/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
